@@ -1,0 +1,212 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+- # Troubleshooting Guide
+
+This guide addresses common issues encountered in the Studynaut application and provides solutions for local development.
+
+## Development Environment Issues
+
+### Node.js and pnpm Issues
+
+- **Problem**: `pnpm command not found`
+  - **Solution**: Install pnpm globally with `npm install -g pnpm`
+
+- **Problem**: Dependency installation fails
+  - **Solution**: Clear pnpm cache with `pnpm store prune` and try again
+  - **Solution**: Check Node.js version compatibility (v18+ recommended)
+
+### TypeScript and Build Errors
+
+- **Problem**: TypeScript compilation errors during build
+  - **Solution**: Check for typing issues, especially in AI provider files
+  - **Solution**: Run `pnpm tsc --noEmit` to identify errors before build
+
+- **Problem**: Path aliases not resolving
+  - **Solution**: Verify tsconfig.json paths configuration matches your project structure
+
+## Database Issues
+
+### PostgreSQL Connection Problems
+
+- **Problem**: `ECONNREFUSED` when connecting to PostgreSQL
+  - **Solution**: Verify PostgreSQL is running with `pg_isready`
+  - **Solution**: Check DATABASE_URL in `.env` has correct host, port, username, password, and database name
+  - **Solution**: Ensure database exists with `createdb studynaut_db`
+
+- **Problem**: Database migration failures
+  - **Solution**: Check migration files for errors
+  - **Solution**: Try running `pnpm db:generate` and `pnpm db:migrate:dev` manually
+  - **Solution**: For specific schema errors, check console output and fix Drizzle schema files
+
+### Drizzle ORM Issues
+
+- **Problem**: Drizzle schema validation errors
+  - **Solution**: Check for mismatches between schema files and existing database schema
+  - **Solution**: Run `pnpm db:generate` to create fresh migration files
+
+- **Problem**: `Unknown column in field list` errors
+  - **Solution**: Ensure migrations have been applied with `pnpm db:migrate:dev`
+  - **Solution**: Check column names in queries match schema definitions
+
+## Redis and Job Queue Issues
+
+### Redis Connection Errors
+
+- **Problem**: `ECONNREFUSED` when connecting to Redis
+  - **Solution**: Verify Redis is running with `redis-cli ping`
+  - **Solution**: Check REDIS_URL in `.env` is correct
+  - **Solution**: Restart Redis service if necessary
+
+### BullMQ Worker Issues
+
+- **Problem**: Changes to worker code don't take effect
+  - **Solution**: **CRITICAL** - You must manually restart the worker process with Ctrl+C and `pnpm dev`
+  - **Solution**: Check for console errors during worker startup
+
+- **Problem**: Jobs stay in 'waiting' state
+  - **Solution**: Verify worker process is running
+  - **Solution**: Check for errors in worker logs
+  - **Solution**: Try restarting Redis to clear stuck jobs with `redis-cli flushall` (caution: this removes all jobs)
+
+- **Problem**: Jobs fail with `TypeError: ... is not a constructor`
+  - **Solution**: Check for ESM/CJS import issues in worker files
+  - **Solution**: Try restarting the worker and server
+
+## API Integration Issues
+
+### Google Gemini API
+
+- **Problem**: `400 API key not valid`
+  - **Solution**: Verify the exact key value in `server/.env` without extra spaces or quotes
+  - **Solution**: Check the API key status in Google AI Studio
+  - **Solution**: Ensure you have the Gemini API enabled in your Google Cloud project
+
+- **Problem**: `PERMISSION_DENIED` errors
+  - **Solution**: Check API key has the correct permissions in Google Cloud Console
+  - **Solution**: Ensure the API is enabled for your project
+
+### OpenAI API
+
+- **Problem**: `401 Incorrect API key` errors
+  - **Solution**: Verify the exact key value in `.env` without extra characters
+  - **Solution**: Check the API key is active in OpenAI dashboard
+  - **Solution**: Ensure you have sufficient API credits
+
+### SerpAPI
+
+- **Problem**: Image search returns no results
+  - **Solution**: Check SERPAPI_API_KEY in `.env`
+  - **Solution**: Verify query construction in the search request
+  - **Solution**: Check API usage limits in SerpAPI dashboard
+
+### ElevenLabs Integration
+
+- **Problem**: Transcription failures
+  - **Solution**: Verify audio file format is supported
+  - **Solution**: Check ELEVENLABS_API_KEY in `.env`
+  - **Solution**: Verify file sizes are within limits (under 25MB)
+
+## Frontend Issues
+
+### Vite Development Server
+
+- **Problem**: `EADDRINUSE` port conflict
+  - **Solution**: Change port in vite.config.ts or stop other processes using the port
+  - **Solution**: Check if another Vite instance is already running
+
+- **Problem**: Hot reload not working
+  - **Solution**: Check for errors in browser console
+  - **Solution**: Restart the dev server with `pnpm dev`
+
+### React Component Problems
+
+- **Problem**: Components not rendering
+  - **Solution**: Check browser console for errors
+  - **Solution**: Verify API responses in Network tab
+  - **Solution**: Check for null/undefined values in component props
+
+- **Problem**: API calls not working
+  - **Solution**: Verify proxy settings in vite.config.ts
+  - **Solution**: Check CORS settings in the backend server
+  - **Solution**: Ensure backend server is running on expected port
+
+## Content Processing Issues
+
+### YouTube Video Processing
+
+- **Problem**: `Failed to extract transcript` error
+  - **Solution**: Verify video has captions available
+  - **Solution**: Check the video URL is correct and accessible
+  - **Solution**: Ensure youtube-transcript-api dependency is installed
+
+### Audio Transcription
+
+- **Problem**: Transcription incomplete or fails
+  - **Solution**: Check audio file quality and format
+  - **Solution**: Verify ElevenLabs API key is valid
+  - **Solution**: For long files, try breaking into smaller segments
+
+### Visual Generation Issues
+
+- **Problem**: Visuals not being generated
+  - **Solution**: Check SerpAPI key is valid
+  - **Solution**: Look for errors in the `GENERATE_VISUAL` job logs
+  - **Solution**: Verify the `visualOpportunities` are being created in the lesson structure
+
+## Debugging Tips
+
+### Logging
+
+- Enable detailed logging by setting `DEBUG=true` in `.env`
+- Check server logs for detailed error information
+- Use console.log in worker.ts for job pipeline debugging
+
+### Monitoring
+
+- Inspect Redis queue state with `redis-cli` commands:
+  ```
+  redis-cli
+  > KEYS *
+  > LRANGE bull:note-processing:failed 0 -1
+  ```
+
+- Check database records directly:
+  ```
+  psql studynaut_db
+  > SELECT * FROM sources WHERE processing_status = 'FAILED';
+  > SELECT * FROM visuals WHERE status = 'FAILED';
+  ```
+
+### Testing API Endpoints
+
+Test API endpoints directly with cURL:
+```
+curl -X POST http://localhost:3001/api/v1/media/text \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Sample text for processing", "title": "Test Note"}' \
+  --cookie "connect.sid=your_session_cookie"
+```
+
+## Restart Procedures
+
+### Complete System Restart
+
+If all else fails, try these steps:
+
+1. Stop all running processes (Ctrl+C)
+2. Restart PostgreSQL and Redis
+3. Start the server and worker with `cd server && pnpm dev`
+4. Start the client with `cd client && pnpm dev`
+
+### Quick Troubleshooting Restart
+
+For most issues with the worker or job queue:
+
+1. Stop the server process (Ctrl+C)
+2. Restart it with `pnpm dev` 

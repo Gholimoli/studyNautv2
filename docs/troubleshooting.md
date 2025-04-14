@@ -1,0 +1,124 @@
+# Troubleshooting Guide
+
+This guide addresses common issues encountered in the Studynaut application and provides solutions for local development.
+
+## Development Environment Issues
+
+### Node.js and pnpm Issues
+
+*   **Problem**: `pnpm command not found`
+    *   **Solution**: Install pnpm globally with `npm install -g pnpm`.
+*   **Problem**: Dependency installation fails
+    *   **Solution**: Ensure you are in the project root directory. Clear pnpm cache with `pnpm store prune` and try `pnpm install` again.
+    *   **Solution**: Check Node.js version compatibility (v18+ recommended). Use nvm if needed (`nvm use 18`).
+
+### TypeScript and Build Errors
+
+*   **Problem**: TypeScript compilation errors during build (`pnpm build` in `server` or `client`).
+    *   **Solution**: Check the terminal output for specific file and line numbers.
+    *   **Solution**: Run `pnpm tsc --noEmit` within the specific package (`server` or `client`) to identify errors before a full build.
+    *   **Solution**: Ensure `@shared` types are correctly built or referenced if changes were made there.
+*   **Problem**: Path aliases (`@/`, `@server/`, `@client/`, `@shared/`) not resolving.
+    *   **Solution**: Verify `tsconfig.json` (`baseUrl` and `paths`) configuration in the relevant package (`server/tsconfig.json`, `client/tsconfig.json`) matches the project structure.
+    *   **Solution**: Restart the TypeScript language server in your IDE (often requires reloading the window).
+    *   **Solution**: Ensure the build process (`tsc`) has run if types depend on generated output.
+
+## Database Issues (PostgreSQL)
+
+### Connection Problems
+
+*   **Problem**: `ECONNREFUSED` or similar connection error when starting the server.
+    *   **Solution**: Verify your PostgreSQL server is running. Use `pg_isready` or check its service status.
+    *   **Solution**: Double-check the `DATABASE_URL` in `server/.env`. Ensure the username, password, host, port, and database name are correct.
+    *   **Solution**: Check firewall rules if PostgreSQL is running on a different machine or container.
+    *   **Solution**: If using Docker, ensure the PostgreSQL container is running and the port mapping is correct.
+
+### Migration Failures
+
+*   **Problem**: `pnpm db:migrate:dev` fails.
+    *   **Solution**: Check the terminal output for specific SQL errors or migration file issues.
+    *   **Solution**: Ensure the database specified in `DATABASE_URL` exists and the user has sufficient privileges.
+    *   **Solution**: If you manually edited SQL migration files, check for syntax errors.
+    *   **Solution**: Sometimes, resetting the development database and re-applying migrations is the easiest fix ( **Use with caution, data will be lost!** ).
+
+### Drizzle ORM Issues
+
+*   **Problem**: Drizzle schema validation errors or type mismatches during development.
+    *   **Solution**: Ensure `server/src/db/schema.ts` accurately reflects the desired database state.
+    *   **Solution**: Run `pnpm db:generate` in the `server` directory to create new migration files reflecting schema changes.
+    *   **Solution**: Apply migrations using `pnpm db:migrate:dev`.
+*   **Problem**: `Unknown column '<column_name>' in field list` or similar runtime query errors.
+    *   **Solution**: Ensure the latest database migrations have been applied (`pnpm db:migrate:dev`).
+    *   **Solution**: Verify that your Drizzle query code (`db.select()...`) correctly uses column names defined in `schema.ts`.
+
+## Redis and Job Queue Issues (BullMQ)
+
+### Redis Connection Errors
+
+*   **Problem**: `ECONNREFUSED` or connection errors related to Redis when starting the server or worker.
+    *   **Solution**: Verify your Redis server is running (`redis-cli ping` should return `PONG`).
+    *   **Solution**: Check the `REDIS_URL` in `server/.env` is correct.
+    *   **Solution**: If using Docker, ensure the Redis container is running and the port mapping is correct.
+
+### BullMQ Worker Issues
+
+*   **Problem**: Changes to worker code (`server/src/worker.ts` or its dependencies) don't take effect.
+    *   **Solution**: **CRITICAL** - You *must* manually restart the backend development process (`Ctrl+C` in the server terminal, then `pnpm dev`). The running worker process does not automatically pick up code changes.
+*   **Problem**: Jobs are added to the queue (visible via API or Redis inspection) but never seem to get processed (stay in `waiting` state).
+    *   **Solution**: Verify the worker process is actually running (check the terminal logs from `pnpm dev` in the `server` directory).
+    *   **Solution**: Check for errors during worker startup in the terminal logs. Connection issues (DB, Redis) or errors in processor function imports can prevent the worker from starting correctly.
+    *   **Solution**: Add extensive `console.log` statements at the beginning of your worker process (`worker.ts`) and inside specific job processors (`core/jobs/*.job.ts`) to trace execution.
+*   **Problem**: Jobs fail immediately or unexpectedly.
+    *   **Solution**: Check the worker logs for error messages related to the specific job processor.
+    *   **Solution**: Add `try...catch` blocks within your job processor functions and log errors with `job.data` for context.
+    *   **Solution**: Ensure all necessary services or external clients (DB, AI providers) are correctly initialized within the worker context.
+*   **Problem**: Clearing stuck jobs (Development Only).
+    *   **Solution**: Use a Redis client (`redis-cli`) to inspect queues (`KEYS bull:*:*`, `LRANGE bull:<queue_name>:waiting 0 -1`). You can flush the *entire* Redis instance with `FLUSHALL` ( **Use with extreme caution - all Redis data will be lost!** ).
+
+## API Integration Issues
+
+*   **Problem**: `4xx` or `5xx` errors related to external APIs (Gemini, OpenAI, SerpAPI, ElevenLabs).
+    *   **Solution**: **Verify API Keys:** Double-check the exact key values in `server/.env`. Ensure no extra spaces, quotes, or characters are present.
+    *   **Solution**: **Check API Key Status:** Visit the respective provider's dashboard (Google AI Studio, OpenAI Platform, SerpAPI, ElevenLabs) to ensure the key is active, has the necessary permissions/APIs enabled, and has sufficient credits/quota.
+    *   **Solution**: **Log Request/Response:** Temporarily add logging within the provider implementation (`server/src/modules/ai/providers/` or `utils/`) to see the exact request being sent and the raw error response received from the API.
+    *   **Solution**: **Check Provider Libraries:** Ensure the correct SDKs/libraries are installed (`@google/generative-ai`, `openai`, `serpapi`, etc.).
+
+## Frontend Issues (`client/`)
+
+### Vite Development Server
+
+*   **Problem**: `EADDRINUSE` port conflict when running `pnpm dev`.
+    *   **Solution**: Stop any other process using the default Vite port (usually 5173). Check `vite.config.ts` for the configured port.
+*   **Problem**: Hot Module Replacement (HMR) not working (changes don't reflect automatically).
+    *   **Solution**: Check the browser's developer console for errors.
+    *   **Solution**: Check the terminal running `pnpm dev` in the `client` directory for errors.
+    *   **Solution**: Try a hard refresh in the browser (`Cmd+Shift+R` or `Ctrl+Shift+R`).
+    *   **Solution**: Restart the Vite dev server.
+
+### React Component / TanStack Query Issues
+
+*   **Problem**: Data not loading, components stuck in loading state.
+    *   **Solution**: Check the browser's Network tab to see if the API request to the backend (`http://localhost:3001/api/...` or similar) is being made correctly.
+    *   **Solution**: Verify the API request is successful (Status 2xx) and the response data is as expected.
+    *   **Solution**: Check the backend server logs for errors related to the specific API endpoint.
+    *   **Solution**: Ensure the TanStack Query key used in `useQuery` is correct and consistent.
+    *   **Solution**: Use React DevTools and TanStack Query DevTools to inspect component state and query cache.
+*   **Problem**: API calls fail with CORS errors.
+    *   **Solution**: Ensure the backend server (`server/src/server.ts`) has correctly configured CORS middleware (`cors` package) to allow requests from the frontend origin (`http://localhost:5173`).
+    *   **Solution**: Verify the `proxy` setting in `client/vite.config.ts` if you are using Vite's proxy feature.
+
+## Debugging Tips
+
+*   **Logging:** Use `console.log` extensively, especially in the backend API handlers, services, and worker job processors. Prefix logs to identify their origin.
+*   **Browser DevTools:** Use the Network tab (check request/response headers and bodies), Console tab (check for frontend errors), and Application tab (check cookies, local storage).
+*   **React DevTools:** Inspect component hierarchy, props, and state.
+*   **TanStack Query DevTools:** Inspect query cache, status, and data.
+*   **Database Client:** Connect directly to your PostgreSQL database using a tool like `psql`, DBeaver, or TablePlus to inspect table data and verify results.
+*   **Redis Client:** Use `redis-cli` to inspect queue states.
+*   **API Client:** Use tools like Postman, Insomnia, or `curl` to test backend API endpoints directly, bypassing the frontend.
+
+## Restart Procedures
+
+*   **Frontend:** Stop (`Ctrl+C`) and restart `pnpm dev` in the `client` directory.
+*   **Backend (API + Worker):** Stop (`Ctrl+C`) and restart `pnpm dev` in the `server` directory. **Remember this is necessary for worker code changes.**
+*   **Full System:** Stop both frontend and backend processes. Optionally restart Docker containers (Postgres, Redis) if used. Then restart backend, then frontend. 

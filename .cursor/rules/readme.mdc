@@ -1,0 +1,67 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+- # Studynaut Project Documentation
+
+Welcome to the comprehensive documentation for the Studynaut application. This documentation is tailored for local development and provides all the information needed to understand, set up, and work with the project.
+
+## Key Documents
+
+### Core Documentation
+
+* **[README.md](mdc:README.md)** - This document, providing an overview of the documentation structure
+* **[PRD.md](mdc:prd.md)** - Product Requirements Document defining vision, goals, and functional/non-functional requirements
+* **[User Stories](mdc:user-stories.md)** - Structured user stories organized by functionality area
+
+### Architecture
+
+* **[Architecture Overview](mdc:architecture/README.md)** - High-level system architecture overview
+* **[Backend Architecture](mdc:architecture/backend.md)** - Backend API server structure and components
+* **[Frontend Architecture](mdc:architecture/frontend.md)** - Frontend client application architecture
+* **[Database Architecture](mdc:architecture/database.md)** - Database schema, relationships, and design
+* **[Job Pipeline](mdc:architecture/job_pipeline.md)** - Background job processing architecture with BullMQ
+
+### Setup and Development
+
+* **[Setup Guide](mdc:setup.md)** - Guide for setting up local development environment
+* **[UI Guidelines](mdc:ui-guidelines.md)** - UI/UX guidelines for consistent design
+* **[AI Prompts Guide](mdc:ai-prompts.md)** - Documentation of AI integration strategy and prompt design
+
+### Operational
+
+* **[Troubleshooting Guide](mdc:troubleshooting.md)** - Solutions for common issues across the application stack
+* **[Lessons Learned](mdc:lessons-learned.md)** - Key insights and challenges from the development process
+
+## Core System Architecture
+
+Studynaut is built with:
+
+- **Frontend**: React, Vite, TypeScript, TanStack Query, Tailwind CSS, Shadcn UI
+- **Backend**: Node.js, Express, TypeScript, Drizzle ORM, BullMQ
+- **Database**: PostgreSQL
+- **Job Queue**: Redis + BullMQ
+- **AI Providers**: Google Gemini API (primary), OpenAI API (fallback)
+- **Image Search**: SerpAPI
+
+The system follows a modular architecture with clear separation between:
+
+1. The **API Server** - handles HTTP requests, authentication, and job scheduling
+2. The **Worker Process** - processes background jobs for content processing
+3. The **Frontend Client** - provides the user interface
+
+## Getting Started
+
+1. Begin with the [Setup Guide](mdc:setup.md) to prepare your local development environment
+2. Refer to the [Architecture Overview](mdc:architecture/README.md) to understand the system components
+3. Use the [Troubleshooting Guide](mdc:troubleshooting.md) when encountering issues
+
+## Important Development Notes
+
+- The worker process runs separately from the API server and must be manually restarted after code changes
+- External API keys (Gemini, OpenAI, SerpAPI) are required for full functionality
+- Local PostgreSQL and Redis installations are needed for development 

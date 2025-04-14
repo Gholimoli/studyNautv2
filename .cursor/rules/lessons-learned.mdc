@@ -1,0 +1,134 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+# Key Lessons Learned
+
+This document summarizes critical insights and challenges encountered during the development of the Studynaut project up to this point (April 2025).
+
+## 1. Architecture & Design
+
+### Insights
+
+*   **Async Job Complexity:** Managing state and ensuring correct sequencing across multiple asynchronous background jobs (BullMQ pipeline) is inherently complex. Careful design of job dependencies, status tracking (`sources.processingStatus`, `sources.processingStage`), and idempotency checks is crucial.
+
+*   **Worker Isolation:** The background job worker (`worker.ts`) runs as a separate Node.js process. It requires its own configuration loading, database connections, and potentially service instantiations. It does not share the runtime context of the main API server.
+
+*   **Monolithic Worker Challenges:** As job logic grows, a single large worker file (`worker.ts`) becomes difficult to maintain and debug. Refactoring job logic into smaller, dedicated functions or modules within `server/src/core/jobs/` is highly recommended.
+
+*   **Visual Generation Strategy:** Direct AI image generation can be slow or unreliable. Using an image search API (SerpAPI) as the primary strategy for finding relevant existing visuals, based on AI-generated descriptions/queries, proved more pragmatic initially. Fallback to placeholders for failed visuals is essential for graceful degradation.
+
+### Challenges Faced
+
+* Managing multiple concurrent visual generation jobs that operate on the same source document
+* Ensuring the assembly job only runs once after all visual jobs complete
+* Handling large extracted texts efficiently, especially from long videos/transcripts
+* Coordinating between multiple processing stages in the pipeline
+
+## 2. Development Workflow & Debugging
+
+### Insights
+
+*   **Worker Restart Requirement:** **CRITICAL:** Changes made to the worker code (`worker.ts`) or its direct dependencies **do not take effect** until the worker Node.js process is manually restarted. This is a frequent source of confusion when debugging job logic. (Restart via `Ctrl+C` and `pnpm dev` locally).
+
+*   **Debugging Asynchronous Flows:** Requires extensive logging (`console.log` in the worker is effective) and potentially inspecting the job queue state (e.g., via Redis CLI) and database records (`sources`, `visuals`, `notes` tables).
+
+*   **API/Schema Mismatches:** Discrepancies between frontend expectations, API responses, shared type definitions, and database schemas can cause subtle bugs. Consistent use of shared types (`shared/` package) and careful validation (e.g., Zod) are important.
+
+### Solutions Implemented
+
+* Added comprehensive logging to track job progression
+* Implemented robust error handling and status tracking
+* Created utility functions to simplify common database operations
+* Standardized API responses with consistent structure and error formatting
+
+## 3. External API Integration
+
+### Insights
+
+*   **AI Models Evolve Quickly:** Google Gemini and OpenAI models undergo frequent updates. Adapting to new capabilities, response formats, and token limits is an ongoing process.
+
+*   **Gemini API Nuances:** Token limits (`maxOutputTokens`) can affect JSON completeness. Models like `gemini-1.5-flash-exp` are required for image modality, while others work well for text. API interfaces continue to evolve.
+
+*   **Audio Processing Challenges:** Transcription quality varies widely depending on the background noise, speaker clarity, and API provider. Fallback to raw transcripts when analysis fails provides graceful degradation.
+
+*   **Image Search Consistency:** SerpAPI queries need careful construction to return relevant results consistently. Using AI to generate specific, detailed search phrases rather than generic descriptions improves visual search quality.
+
+### Solutions Implemented
+
+* Abstracted AI providers behind a common interface to allow easy switching
+* Implemented fallback logic between providers for reliability
+* Added retries with exponential backoff for transient API failures
+* Created a modular approach to visual generation with multiple strategies
+
+## 4. Database and Data Management
+
+### Insights
+
+*   **Drizzle ORM:** Offers strong typing and schema management, but requires running migrations (`drizzle-kit generate`, `drizzle-kit push` or manual application) after schema changes.
+
+*   **Schema Evolution:** Recognize when to use JSON/JSONB fields (e.g., for `sources.metadata`, `notes.generatedContent`) vs. structured relations. JSON supports flexible structures but lacks indexing and validation capabilities of normal columns.
+
+### Solutions Implemented
+
+* Created helper functions for common database operations
+* Used JSON/JSONB for complex structured data that varies by use case
+* Implemented proper relational connections between core entities
+* Added proper status tracking on key entities to enable monitoring
+
+## 5. User Experience
+
+### Insights
+
+* Long-running processes need clear feedback mechanisms
+* Visual components significantly enhance the learning experience
+* Users expect immediate feedback even when processes run asynchronously
+
+### Solutions Implemented
+
+* Added progress tracking and status updates for background jobs
+* Implemented toast notifications for important events
+* Created placeholder visuals for failed image generations
+* Designed responsive layouts to work across device sizes
+
+## 6. Testing and Quality Assurance
+
+### Insights
+
+* Traditional unit tests are insufficient for async job pipelines
+* Error handling needs to be comprehensive and recover gracefully
+
+### Solutions Implemented
+
+* Created tailored approaches for testing asynchronous flows
+* Implemented detailed logging for debugging
+
+## 7. Deployment and Operations
+
+### Insights
+
+* Environment configuration needs careful management between development and production
+* Different platforms have varying requirements for running Node.js applications
+
+### Solutions Implemented
+
+* Standardized environment variable handling
+* Added proactive monitoring for worker process health
+
+## 8. Documentation
+
+### Insights
+
+*   **Consolidated Source of Truth:** Maintaining multiple, overlapping documentation files leads to confusion. Consolidating into a well-structured `/docs` directory is essential.
+
+*   **Key Areas:** PRD, Architecture (Backend, Frontend, DB, Job Pipeline), Setup/Development Guides, and specific References (like competitor analysis) are vital components.
+
+### Solutions Implemented
+
+* Created comprehensive architecture documentation
+* Added detailed guides for common operations
+* Maintained lessons learned document for knowledge preservation 
