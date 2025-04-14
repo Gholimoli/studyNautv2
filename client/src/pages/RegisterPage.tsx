@@ -32,16 +32,16 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.24))] px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">Sign Up</CardTitle>
-          <CardDescription>
-            Create your Studynaut account.
+    <div className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.16))] px-4 py-12">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-semibold tracking-tight">Create Account</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Enter your details below to create your Studynaut account.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleRegister}>
-          <CardContent className="grid gap-4">
+          <CardContent className="grid gap-6 py-4">
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
               <Input 
@@ -90,16 +90,16 @@ export function RegisterPage() {
               />
             </div>
             {registerMutation.isError && (
-              <p className="text-sm text-red-600">{registerMutation.error?.message || 'Registration failed'}</p>
+              <p className="text-sm text-destructive">{registerMutation.error?.message || 'Registration failed. Please try again.'}</p>
             )}
           </CardContent>
-          <CardFooter className="flex flex-col items-start">
+          <CardFooter className="flex flex-col items-center gap-4">
             <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
               {registerMutation.isPending ? 'Creating Account...' : 'Sign Up'}
             </Button>
-            <div className="mt-4 text-center text-sm">
+            <div className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link to="/login" className="underline">
+              <Link to="/login" className="font-medium text-primary underline underline-offset-4 hover:text-primary/90">
                 Sign in
               </Link>
             </div>
