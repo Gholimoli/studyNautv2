@@ -31,23 +31,23 @@ export interface IAiProvider {
 // Schema for a single block in the lesson structure
 export const lessonBlockSchema = z.object({
   type: z.enum(['heading', 'subheading', 'paragraph', 'bullet_list', 'key_term', 'visual_placeholder']), // Added visual_placeholder
-  content: z.string(),
-  level: z.number().optional(), // For headings (e.g., 1, 2, 3)
-  items: z.array(z.string()).optional(), // For bullet_list
-  placeholderId: z.string().optional(), // ID for visual_placeholder type, e.g., VISUAL_1
+  content: z.string().optional(), // Allow content to be optional to handle AI omissions
+  level: z.number().nullable().optional(), // Allow null for level as well, keep optional
+  items: z.array(z.string()).nullable().optional(), // Allow null for items, keep optional
+  placeholderId: z.string().nullable().optional(), // Allow null for placeholderId, keep optional
 });
 export type LessonBlock = z.infer<typeof lessonBlockSchema>;
 
 // Schema for the overall lesson structure returned by AI
 export const aiStructuredContentSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty'),
-  summary: z.string().optional(), // Optional brief summary
+  summary: z.string().nullable().optional(), // Allow null or undefined
   structure: z.array(lessonBlockSchema),
   visualOpportunities: z.array(z.object({ 
       placeholderId: z.string(), // ID matching a placeholder in the structure
       description: z.string(),   // Description of the desired visual
       searchQuery: z.string().optional(), // Optional optimized query for image search
-  })).optional(),
+  })).nullable().optional(), // Allow null or undefined
 });
 export type AiStructuredContent = z.infer<typeof aiStructuredContentSchema>;
 

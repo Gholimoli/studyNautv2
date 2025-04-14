@@ -1,5 +1,7 @@
-import express, { Express, Request, Response } from 'express';
 import dotenv from 'dotenv';
+dotenv.config();
+
+import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import { authRoutes } from '@/modules/auth/routes/auth.routes'; // Import auth routes
 import { mediaRoutes } from '@/modules/media/routes/media.routes'; // Import media routes
@@ -7,8 +9,8 @@ import passport from 'passport'; // Import passport
 import { configurePassport } from '@/core/config/passport'; // Import passport config
 import session from 'express-session'; // Import express-session
 import connectPgSimple from 'connect-pg-simple'; // Import pg session store
+import { notesRoutes } from '@/modules/notes/routes/notes.routes';
 
-dotenv.config();
 configurePassport(); // Configure Passport strategies
 
 const app: Express = express();
@@ -60,6 +62,7 @@ app.get('/health', (req: Request, res: Response) => {
 // API Routes
 app.use('/api/auth', authRoutes); // Mount auth routes
 app.use('/api/media', mediaRoutes); // Mount media routes
+app.use('/api/notes', notesRoutes);
 // TODO: Add other module routes (notes, etc.)
 
 // TODO: Add global error handler middleware

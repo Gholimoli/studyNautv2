@@ -1,0 +1,138 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+-here is a detailed implementation guide for the audio transcription pipeline using ElevenLabs as the primary provider and OpenAI as the fallback, based specifically on the code structure and logic we've analyzed in this project.
+Core Goal: Transcribe uploaded audio files, obtaining both the full text and word-level timestamps whenever possible. Prioritize ElevenLabs for its timestamp capabilities and use OpenAI as a robust fallback.
+Key Components & Files:
+server/src/modules/media/media.service.ts: Orchestrates the overall process, decides when to call which processor, handles service-level fallback, and updates the database.
+server/src/modules/media/processors/elevenlabs.processor.ts: Handles all interactions with the ElevenLabs API, including direct calls, chunking, retries, initiating chunk-level fallback to OpenAI, and combining results.
+server/src/modules/media/processors/openai.processor.ts: Handles interactions with the OpenAI API, both for chunk-level fallback (initiated by ElevenLabs processor) and full file transcription (initiated by MediaService).
+server/.env: Contains the necessary API keys (ELEVENLABS_API_KEY, OPENAI_API_KEY).
+Required Environment Variables:
+ELEVENLABS_API_KEY: Your API key for ElevenLabs.
+OPENAI_API_KEY: Your API key for OpenAI.
+Detailed Workflow:
+The process typically starts when an audio file is ready for processing (e.g., after an upload). The MediaService.processAudioFile method is the main entry point for this workflow.
+Apply to .env
+}
+Step 1: Primary Attempt (ElevenLabs - processAudioWithElevenLabs)
+This is the core function in server/src/modules/media/processors/elevenlabs.processor.ts.
+Prerequisites: Checks if ELEVENLABS_API_KEY exists and the audioFilePath is valid.
+File Size Check:
+Gets file stats: fs.promises.stat(audioFilePath)
+Compares size to FILE_SIZE_LIMIT_FOR_CHUNKING (25 * 1024 * 1024 bytes).
+Scenario A: Direct API Call (File Size <= 25MB)
+SDK Usage: None. Uses Node.js https module.
+API Endpoint: POST https://api.elevenlabs.io/v1/speech-to-text
+Request:
+Method: POST
+Hostname: api.elevenlabs.io
+Path: /v1/speech-to-text
+Headers:
+Accept: application/json
+xi-api-key: process.env.ELEVENLABS_API_KEY
+Content-Type: (Set automatically by form-data library)
+Body (multipart/form-data):
+file: fs.createReadStream(audioFilePath)
+model_id: 'scribe_v1'
+language_code: Provided language (e.g., 'en')
+timestamps_granularity: 'word'
+diarize: 'false'
+Response Handling:
+Expects a 2xx status code.
+Parses the JSON response body into ElevenLabsTranscriptionResponse.
+Checks if parsedResponse.words exists and is not empty.
+If successful, formats a TranscriptData object: { title, transcript: joined_words, words: parsedResponse.words }.
+Error Handling: Handles request errors, timeouts (CHUNK_TIMEOUT = 10 mins), non-2xx responses, and JSON parsing errors. Returns null on failure.
+Apply to .env
+;
+Scenario B: Chunking (File Size > 25MB)
+Chunk Creation (createChunks):
+Creates a temporary directory (os.tmpdir()).
+Uses ffprobe (via child_process.execAsync) to get audio duration.
+Calculates estimated chunk duration based on CHUNK_SIZE (5MB) and file size/duration (aiming for 10-600 seconds per chunk).
+Uses ffmpeg (via child_process.execAsync) to split the file:
+Apply to .env
+Run
+"
+Stores chunk metadata: { path: string, index: number, start: number, end: number }.
+Parallel Chunk Processing (processChunksInParallel):
+Uses p-limit library to limit concurrency to MAX_CONCURRENT_CHUNKS (12).
+Creates a temporary .jsonl file (elevenLabsResultsPath) to store results from successful chunks.
+Iterates through chunks, calling transcribeChunk for each within the concurrency limit.
+Retries: Manages a retry loop (MAX_CHUNK_RETRIES = 3 attempts per chunk) with a delay (RETRY_DELAY = 5000ms). If a chunk fails all attempts, its index is added to permanentlyFailedChunkIndices.
+Individual Chunk Transcription (transcribeChunk):
+Almost identical to the Direct API Call logic (same API endpoint, headers, body parameters like model_id, timestamps_granularity, etc.) but operates on a single chunkPath.
+Crucially: It receives the startTimeOffset of the chunk and adjusts the start and end timestamps returned by the API: word.start + startTimeOffset, word.end + startTimeOffset.
+On success, writes the result ({ chunkIndex: number, words: adjustedWords }) as a JSON line to the elevenLabsResultsPath file.
+Returns the result object or null on failure/error within the attempt.
+Initiate Chunk-Level Fallback (---> Step 2): After processChunksInParallel completes, processAudioWithElevenLabs checks if permanentlyFailedChunkIndices is non-empty. If so, it proceeds to Step 2.
+Combine Results (---> Step 3): After potentially running the chunk-level fallback, it calls combineTranscriptionsFromSources to merge results.
+Step 2: Chunk-Level Fallback (OpenAI - processSpecificAudioChunksWithOpenAI)
+This function resides in server/src/modules/media/processors/openai.processor.ts and is called only by processAudioWithElevenLabs if some chunks permanently failed the ElevenLabs processing + retries.
+Trigger: Called with an array of chunk metadata (chunkFiles) corresponding only to the indices in permanentlyFailedChunkIndices.
+Prerequisites: Checks if OPENAI_API_KEY is configured and initializes the openai SDK client.
+SDK Usage: Yes, uses the official openai Node.js library.
+API Call: Uses openai.audio.transcriptions.create.
+Concurrency: Uses p-limit with OPENAI_CONCURRENCY_LIMIT (5).
+Parameters per Chunk:
+model: 'gpt-4o-mini-transcribe' (Note: specific, potentially cheaper/faster model for fallback chunks)
+file: fs.createReadStream(chunk.path)
+language: Provided language code
+response_format: 'verbose_json' (Required to get word timestamps)
+timestamp_granularities: ['word'] (Required to get word timestamps)
+Timestamp Adjustment: Similar to transcribeChunk, it adjusts the returned start/end timestamps from OpenAI by adding the chunk's original start time.
+Response Handling:
+Expects a WhisperVerboseJsonResponse (requires type casting/assertion as SDK might not have full granularity types).
+Checks for the presence of response.words.
+On success, returns { chunkIndex: number, words: OpenAIWord[] }.
+Handles errors gracefully, logging failures.
+Output: Returns a Promise resolving to an array of successful results Array<{ chunkIndex: number, words: OpenAIWord[] }> or null if OpenAI is not configured.
+Apply to .env
+Step 3: Result Combination (combineTranscriptionsFromSources)
+Called by processAudioWithElevenLabs after ElevenLabs processing and any necessary chunk-level OpenAI fallback.
+Inputs: elevenLabsResultsPath, openAIResults (from Step 2, can be null), allChunkIndices.
+Process:
+Reads the ElevenLabs .jsonl results file line by line, parsing each JSON object ({ chunkIndex, words }) and storing it in a Map<number, any[]> keyed by chunkIndex.
+If openAIResults exists, iterates through it. For each OpenAI result ({ chunkIndex, words }), it overwrites the entry in the map for that chunkIndex. OpenAI results take precedence for chunks processed by both.
+Creates a final allWords array by iterating through allChunkIndices (maintaining original order) and appending the words found in the map for each index. Logs warnings for missing chunks.
+Sorts the allWords array globally by each word's start time.
+Generates the finalTranscript string by joining the text of the sorted words.
+Output: Returns a TranscriptData object: { title, transcript: finalTranscript, words: allWords } or null if no words were collected.
+Step 4: Service-Level Fallback (OpenAI - transcribeAudioWithOpenAI)
+This function resides in server/src/modules/media/processors/openai.processor.ts and is called only by MediaService.processAudioFile if the entire primary ElevenLabs path (Steps 1-3) fails.
+Trigger: Called with the original audio filePath.
+Prerequisites: Checks OPENAI_API_KEY and initializes SDK client.
+Internal Chunking: Performs its own file size check (MAX_FILE_SIZE_BYTES = 25MB) and uses its own chunkAudioFile function (using ffmpeg, similar logic to ElevenLabs' but potentially different target chunk size/time) if the file is large.
+SDK Usage: Yes, openai library.
+API Call: Uses openai.audio.transcriptions.create.
+Concurrency: Processes its own chunks (if any) with CONCURRENT_CHUNKS (5).
+Parameters:
+model: 'gpt-4o-transcribe' (Note: Different, possibly more general/powerful model than chunk fallback)
+file: fs.createReadStream(filePath) (or chunk path)
+language: Provided language code
+response_format: 'text' (IMPORTANT: No word timestamps requested or returned here)
+Response Handling:
+Expects the response to be a simple string containing the transcript.
+If chunking was used, it joins the text results from chunks in order.
+Output: Returns a Promise resolving to { text: string } or null on failure.
+Apply to .env
+Step 5: Final Output & Database Update
+Back in MediaService.processAudioFile:
+Checks if transcriptText was successfully obtained (either from ElevenLabs/Combined or the OpenAI full fallback).
+If yes:
+Creates a NewSource record for the database.
+Sets extractedText to the final transcript string.
+Sets metadata.processor to processorUsed ('ElevenLabs' or 'OpenAI').
+Sets metadata.language.
+Saves the record using db.insert(sources)....
+Enqueues a PROCESS_SOURCE_TEXT job via jobQueue.add for downstream processing (like summarization or note generation).
+Returns a MediaProcessResult indicating success or failure.
+Cleanup:
+Both elevenlabs.processor.ts and openai.processor.ts include finally blocks to clean up temporary directories and files created during chunking (fs.promises.rm and fs.promises.unlink).
+This detailed breakdown covers the end-to-end flow, specific API calls, models, parameters, fallback triggers, and result handling as implemented in the codebase provided.

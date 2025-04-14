@@ -10,7 +10,6 @@ interface NoteListItem {
   title: string;
   createdAt: string;
   updatedAt: string;
-  sourceType: string; // TODO: Use a literal union type if defined in shared types
   favorite: boolean;
 }
 
@@ -37,7 +36,7 @@ export function useGetNotesQuery() {
 }
 
 // Define the expected shape for a single detailed note
-interface NoteDetail extends NoteListItem { // Extends the list item type
+interface NoteDetail extends Omit<NoteListItem, 'sourceType'> { // Remove sourceType from extension
   markdownContent?: string;
   htmlContent?: string;
   originalTranscript?: string; // If applicable

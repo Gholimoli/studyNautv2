@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useGetNotesQuery } from '@/hooks/useNotesQueries';
 import { Link } from '@tanstack/react-router';
 import { Skeleton } from "@/components/ui/skeleton"
+import { AudioUploadForm } from "@/components/media/AudioUploadForm";
 
 export function DashboardPage() {
   const [text, setText] = useState('');
@@ -77,6 +78,12 @@ export function DashboardPage() {
           </form>
         </Card>
 
+        {/* Add after the text processing section, before recent notes */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Test Audio Pipeline</h2>
+          <AudioUploadForm />
+        </section>
+
         {/* Recent Notes List Card */}
         <Card>
           <CardHeader>
@@ -111,7 +118,7 @@ export function DashboardPage() {
                     >
                       <h3 className="font-medium text-primary truncate">{note.title || 'Untitled Note'}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Source: {note.sourceType} | Created: {new Date(note.createdAt).toLocaleDateString()}
+                        Created: {new Date(note.createdAt).toLocaleDateString()}
                       </p>
                     </Link>
                   </li>

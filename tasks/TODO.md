@@ -52,3 +52,26 @@
 - [ ] Create frontend component to display detailed note view
 
 ## Phase 8: Study Tools
+
+---
+
+## Phase 9: Audio Upload & Transcription Pipeline
+
+- [x] Implement `/api/media/upload` endpoint for audio files (backend)
+- [x] Implement BullMQ job for audio transcription (`transcribeAudio.job.ts`)
+- [x] Integrate ElevenLabs API for transcription (with chunking, retries, and OpenAI fallback)
+- [x] Update DB and job status throughout pipeline
+- [ ] Create minimal React UI for audio upload and status (frontend)
+- [ ] Display upload progress and show resulting `sourceId` and processing status
+- [ ] Add error handling and user feedback in UI
+- [ ] End-to-end test: upload audio, verify DB, and check transcription result
+
+---
+
+## Phase 10: UI Testing for Audio Pipeline
+
+- [ ] Test audio upload UI with various file sizes and formats
+- [ ] Test backend pipeline with ElevenLabs and OpenAI failover
+- [ ] Document any issues or edge cases found during testing
+
+- [x] Basic Audio Pipeline Test UI: Added a section to the dashboard using AudioUploadForm for manual audio pipeline testing.

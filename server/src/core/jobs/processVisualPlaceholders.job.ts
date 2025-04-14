@@ -34,11 +34,12 @@ export async function processVisualPlaceholdersJob(job: Job<ProcessVisualPlaceho
     if (!visualOpportunities || visualOpportunities.length === 0) {
       console.log(`[Worker:ProcessVisualPlaceholders] No visual opportunities found for source ID: ${sourceId}. Proceeding to assembly.`);
       // If no visuals, directly enqueue the final assembly job
-      // await noteProcessingQueue.add(JobType.ASSEMBLE_NOTE, { sourceId }); 
-      // For now, just update status
       await db.update(sources)
         .set({ processingStage: 'ASSEMBLY_PENDING' })
         .where(eq(sources.id, sourceId));
+      // Enqueue the next job
+      await noteProcessingQueue.add(JobType.ASSEMBLE_NOTE, { sourceId }); 
+      console.log(`[Worker:ProcessVisualPlaceholders] Enqueued ${JobType.ASSEMBLE_NOTE} job for source ID: ${sourceId}`);
       return; // Nothing more to do in this job
     }
 

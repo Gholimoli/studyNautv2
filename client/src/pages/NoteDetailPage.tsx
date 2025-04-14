@@ -49,8 +49,8 @@ export function NoteDetailPage() {
       {note && (
         <article className="prose dark:prose-invert max-w-none">
           <h1>{note.title || 'Untitled Note'}</h1>
-          <p className="text-sm text-muted-foreground !mt-0">
-            Source: {note.sourceType} | Created: {new Date(note.createdAt).toLocaleDateString()}
+          <p className="text-sm text-muted-foreground">
+            Created: {new Date(note.createdAt).toLocaleDateString()}
           </p>
           <div className="mt-6">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
