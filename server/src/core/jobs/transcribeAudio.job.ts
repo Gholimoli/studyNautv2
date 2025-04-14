@@ -6,22 +6,17 @@ import path from 'path';
 import fsPromises from 'fs/promises'; // Alias the promises import
 import fs from 'fs'; // Import the standard fs module
 import os from 'os';
-import { exec } from 'child_process';
-import util from 'util';
 import pLimit from 'p-limit';
 import OpenAI from 'openai'; // For fallback
-import { env } from '@/core/config'; // For API keys
 import { noteProcessingQueue } from '@/core/jobs/queue'; // To enqueue next job
 import fetch from 'node-fetch'; // Import fetch
 import FormData from 'form-data'; // Import FormData
 import { Readable } from 'stream'; // For creating stream from buffer
-
-const execAsync = util.promisify(exec);
+import { checkFileSize, createAudioChunks } from '@/utils/audio.utils'; // Import from new location
 
 // --- Constants (adjust as needed) ---
 const FILE_SIZE_LIMIT_DIRECT_API = 25 * 1024 * 1024; // 25MB
-const CHUNK_SIZE_MB = 5;
-const CHUNK_SIZE_BYTES = CHUNK_SIZE_MB * 1024 * 1024;
+const SEGMENT_TIME_SECONDS = 600; // 10 minutes, consistent with default in createAudioChunks
 const MAX_CONCURRENT_CHUNKS_ELEVENLABS = 12;
 const MAX_CONCURRENT_CHUNKS_OPENAI = 5;
 const MAX_CHUNK_RETRIES = 3;
@@ -69,14 +64,9 @@ interface WhisperVerboseJsonResponse {
 
 // --- Helper Functions (Placeholders - Implement based on guide) ---
 
-async function checkFileSize(filePath: string): Promise<number> {
-  const stats = await fsPromises.stat(filePath);
-  return stats.size;
-}
-
 async function transcribeDirectElevenLabs(filePath: string, languageCode?: string): Promise<TranscriptData | null> {
   console.log(`[TranscribeJob] Attempting direct ElevenLabs transcription for ${filePath}`);
-  if (!env.ELEVENLABS_API_KEY) {
+  if (!process.env.ELEVENLABS_API_KEY) {
     console.error('[TranscribeJob] ElevenLabs API key not configured.');
     return null;
   }
@@ -84,7 +74,7 @@ async function transcribeDirectElevenLabs(filePath: string, languageCode?: strin
   const url = 'https://api.elevenlabs.io/v1/speech-to-text';
   const headers = {
     'Accept': 'application/json',
-    'xi-api-key': env.ELEVENLABS_API_KEY,
+    'xi-api-key': process.env.ELEVENLABS_API_KEY,
   };
 
   try {
@@ -154,93 +144,13 @@ async function transcribeDirectElevenLabs(filePath: string, languageCode?: strin
   }
 }
 
-// Helper to parse ffprobe duration output (e.g., "123.456")
-function parseDuration(output: string): number | null {
-  const match = output.match(/duration=(\d+\.\d+)/i) || output.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d+)/);
-  if (match && match[1] && match[2] && match[3]) {
-    // HH:MM:SS.ms format
-    return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]);
-  } 
-  // Check for simpler seconds format
-  const durationMatch = output.match(/duration=([0-9.]+)/i);
-   if (durationMatch && durationMatch[1]) {
-      return parseFloat(durationMatch[1]);
-   }
-  console.warn("[TranscribeJob] Could not parse duration from ffprobe output:", output);
-  return null;
-}
-
-async function createAudioChunks(filePath: string, outputDir: string): Promise<{ path: string, index: number, start: number, end: number }[]> {
-  console.log(`[TranscribeJob] Creating audio chunks for ${filePath} in ${outputDir}`);
-  let durationSeconds: number | null = null;
-  try {
-    const { stdout: ffprobeOutput } = await execAsync(`ffprobe -v error -show_format -show_streams -of flat=s=_ -sexagesimal ${JSON.stringify(filePath)}`);
-    durationSeconds = parseDuration(ffprobeOutput);
-  } catch (err: any) {
-    console.warn(`[TranscribeJob] ffprobe failed for ${filePath}, cannot determine exact chunk times:`, err.message);
-  }
-
-  if (!durationSeconds) {
-    console.warn("[TranscribeJob] Could not get duration, cannot create precise chunks.");
-    // Consider throwing error or implementing fallback if duration is critical
-    // For now, we might proceed but start/end times will be rough estimates
-    // Or attempt simple segmentation without duration?
-    throw new Error('Failed to get audio duration via ffprobe, cannot proceed with chunking.'); 
-  }
-  
-  const segmentTimeSeconds = 600; // Target segment length (e.g., 10 minutes). Adjust as needed.
-  // ffmpeg can sometimes create slightly longer/shorter segments.
-  
-  const outputPattern = path.join(outputDir, 'chunk_%03d' + path.extname(filePath));
-  const ffmpegCommand = `ffmpeg -i ${JSON.stringify(filePath)} -f segment -segment_time ${segmentTimeSeconds} -c copy -reset_timestamps 1 ${JSON.stringify(outputPattern)}`;
-
-  console.log(`[TranscribeJob] Running ffmpeg: ${ffmpegCommand}`);
-  try {
-    await execAsync(ffmpegCommand);
-  } catch (err: any) {
-    console.error(`[TranscribeJob] ffmpeg chunking failed:`, err);
-    throw new Error(`ffmpeg failed to create chunks: ${err.message}`);
-  }
-
-  // List created chunk files
-  const files = await fsPromises.readdir(outputDir);
-  const chunkFiles = files
-    .filter(f => f.startsWith('chunk_') && f.endsWith(path.extname(filePath)))
-    .sort(); // Sort ensures chronological order based on %03d
-
-  const chunksMetadata: { path: string, index: number, start: number, end: number }[] = [];
-  let currentTime = 0;
-  for (let i = 0; i < chunkFiles.length; i++) {
-    const chunkPath = path.join(outputDir, chunkFiles[i]);
-    // Estimate start/end based on segment time - actual duration might vary slightly
-    const estimatedStart = i * segmentTimeSeconds;
-    const estimatedEnd = Math.min((i + 1) * segmentTimeSeconds, durationSeconds);
-    
-    chunksMetadata.push({
-      path: chunkPath,
-      index: i,
-      start: estimatedStart, 
-      end: estimatedEnd,
-    });
-    // Note: Could run ffprobe on each chunk for precise timings, but adds overhead.
-  }
-
-  if (chunksMetadata.length === 0) {
-     console.error("[TranscribeJob] ffmpeg command ran but no chunks were found in", outputDir);
-     throw new Error("Chunking process failed to produce output files.");
-  }
-  
-  console.log(`[TranscribeJob] Created ${chunksMetadata.length} chunks.`);
-  return chunksMetadata;
-}
-
 async function transcribeChunkElevenLabs(
   chunkPath: string,
   startTimeOffset: number,
   languageCode?: string
 ): Promise<{ words: WordTimestamp[] } | null> {
   console.log(`[TranscribeJob] Transcribing chunk (ElevenLabs): ${chunkPath} with offset ${startTimeOffset}`);
-  if (!env.ELEVENLABS_API_KEY) {
+  if (!process.env.ELEVENLABS_API_KEY) {
     console.error('[TranscribeJob] ElevenLabs API key not configured.');
     return null;
   }
@@ -248,7 +158,7 @@ async function transcribeChunkElevenLabs(
   const url = 'https://api.elevenlabs.io/v1/speech-to-text';
   const headers = {
     'Accept': 'application/json',
-    'xi-api-key': env.ELEVENLABS_API_KEY,
+    'xi-api-key': process.env.ELEVENLABS_API_KEY,
   };
 
   try {
@@ -312,12 +222,12 @@ async function transcribeChunksOpenAI(
   languageCode?: string
 ): Promise<{ chunkIndex: number, words: WordTimestamp[] }[]> {
   console.log(`[TranscribeJob] Transcribing ${chunksToProcess.length} chunks with OpenAI fallback`);
-  if (!env.OPENAI_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     console.error('[TranscribeJob] OpenAI API key not configured for fallback.');
     return [];
   }
 
-  const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const limit = pLimit(MAX_CONCURRENT_CHUNKS_OPENAI);
   const results: { chunkIndex: number, words: WordTimestamp[] }[] = [];
 
@@ -435,13 +345,13 @@ async function combineTranscriptions(
 
 async function transcribeFullFallbackOpenAI(filePath: string, languageCode?: string): Promise<TranscriptData | null> {
   console.log(`[TranscribeJob] Attempting full fallback transcription with OpenAI for ${filePath}`);
-  if (!env.OPENAI_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     console.error('[TranscribeJob] OpenAI API key not configured for fallback.');
     return null;
   }
 
   try {
-    const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     // Use createReadStream for potentially large files
     const fileStream = fs.createReadStream(filePath);
 
@@ -479,131 +389,205 @@ export const processAudioTranscription = async (job: Job<{ sourceId: number }>) 
   const { sourceId } = job.data;
   console.log(`[TranscribeJob] Starting transcription for sourceId: ${sourceId}`);
 
+  await job.updateProgress(0);
+
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
 
-  if (!source || source.sourceType !== 'AUDIO' || !source.storagePath) {
-    console.error(`[TranscribeJob] Invalid source or missing data for sourceId: ${sourceId}`);
-    throw new Error(`Invalid source or missing data for sourceId: ${sourceId}`);
+  if (!source || source.processingStatus === 'COMPLETED' || source.processingStatus === 'FAILED') {
+    console.warn(`[TranscribeJob] Source ${sourceId} not found, already processed, or failed. Skipping.`);
+    return;
   }
 
+  // Check for file path in metadata
+  const storagePath = (source?.metadata as { storagePath?: string } | null)?.storagePath;
+  if (!storagePath) {
+    console.error(`[TranscribeJob] Source ${sourceId} is missing storagePath in metadata. Cannot process.`);
+    await db.update(sources).set({ processingStatus: 'FAILED', processingStage: 'TRANSCRIPTION', processingError: 'Missing file path' }).where(eq(sources.id, sourceId));
+    return;
+  }
+
+  const audioFilePath = path.resolve(storagePath);
+  // Access language code from metadata
+  const languageCode = (source.metadata as { languageCode?: string } | null)?.languageCode;
+
+  // Update status to PROCESSING
   await db.update(sources)
-    .set({ processingStatus: 'PROCESSING', processingStage: 'TRANSCRIPTION' })
+    .set({ processingStatus: 'PROCESSING', processingStage: 'TRANSCRIPTION_START' })
     .where(eq(sources.id, sourceId));
 
-  const audioFilePath = path.resolve(__dirname, '../../', source.storagePath); // Assumes storagePath is relative to server root
-  let transcriptData: TranscriptData | null = null;
-  let finalError: Error | null = null;
-  let tempDir: string | null = null;
+  let transcriptResult: TranscriptData | null = null;
+  let tempDir: string | null = null; // To store chunks if needed
 
   try {
-    // Check file size
-    const fileSize = await checkFileSize(audioFilePath);
+    // 1. Check file size
+    const fileSize = await checkFileSize(audioFilePath); // Use imported function
+    console.log(`[TranscribeJob] File size for ${sourceId}: ${fileSize} bytes`);
+    await job.log(`Checked file size: ${fileSize} bytes`);
 
+    // 2. Attempt Transcription (Direct or Chunked)
     if (fileSize <= FILE_SIZE_LIMIT_DIRECT_API) {
-      // --- Direct API Call --- 
-      transcriptData = await transcribeDirectElevenLabs(audioFilePath, source.metadata?.languageCode);
+      // 2a. Direct ElevenLabs API call
+      await job.updateProgress(10);
+      await job.log('File size within limit, attempting direct ElevenLabs transcription.');
+      transcriptResult = await transcribeDirectElevenLabs(audioFilePath, languageCode);
+      if (transcriptResult) {
+           await job.log('Direct ElevenLabs transcription successful.');
+      } else {
+          await job.log('Direct ElevenLabs transcription failed.');
+      }
     } else {
-      // --- Chunking Workflow --- 
-      tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'studynaut-chunks-'));
-      const chunks = await createAudioChunks(audioFilePath, tempDir);
-      const allChunkIndices = chunks.map(c => c.index);
-      const elevenLabsResultsPath = path.join(tempDir, 'elevenlabs_results.jsonl');
-      const permanentlyFailedChunkIndices: number[] = [];
-      const limit = pLimit(MAX_CONCURRENT_CHUNKS_ELEVENLABS);
-      const chunkProcessingPromises: Promise<void>[] = [];
+      // 2b. Chunking required
+      await job.updateProgress(10);
+      await job.log('File size exceeds limit, starting chunking process.');
+      tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), `studynaut-chunks-${sourceId}-`));
+      console.log(`[TranscribeJob] Created temp dir for chunks: ${tempDir}`);
 
-      console.log(`[TranscribeJob] Starting parallel processing for ${chunks.length} chunks...`);
+      // Use imported function, pass SEGMENT_TIME_SECONDS
+      const chunks = await createAudioChunks(audioFilePath, tempDir, SEGMENT_TIME_SECONDS);
+      await job.log(`Created ${chunks.length} audio chunks.`);
+      await job.updateProgress(20);
 
-      // Create a writable stream for the results file
-      const resultsStream = fs.createWriteStream(elevenLabsResultsPath, { flags: 'a' });
-
-      for (const chunk of chunks) {
-        chunkProcessingPromises.push(
-          limit(async () => {
-            let attempt = 0;
-            let success = false;
-            while (attempt < MAX_CHUNK_RETRIES && !success) {
-              attempt++;
-              console.log(`[TranscribeJob] Attempt ${attempt}/${MAX_CHUNK_RETRIES} for chunk ${chunk.index}`);
-              const result = await transcribeChunkElevenLabs(chunk.path, chunk.start, source.metadata?.languageCode);
-              if (result && result.words) {
-                // Success: Write result to JSONL file
-                const resultLine = JSON.stringify({ chunkIndex: chunk.index, words: result.words }) + '\n';
-                resultsStream.write(resultLine);
-                success = true;
-                console.log(`[TranscribeJob] Successfully processed chunk ${chunk.index} on attempt ${attempt}`);
-              } else if (attempt < MAX_CHUNK_RETRIES) {
-                // Failure, but retries remain
-                console.warn(`[TranscribeJob] Chunk ${chunk.index} failed attempt ${attempt}. Retrying in ${RETRY_DELAY}ms...`);
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-              }
-            } // End retry loop
-
-            if (!success) {
-              console.error(`[TranscribeJob] Chunk ${chunk.index} failed permanently after ${MAX_CHUNK_RETRIES} attempts.`);
-              permanentlyFailedChunkIndices.push(chunk.index);
-            }
-          })
-        );
-      } // End for loop
-
-      // Wait for all chunk processing promises (including retries) to settle
-      await Promise.all(chunkProcessingPromises);
-      resultsStream.end(); // Close the results file stream
-      console.log(`[TranscribeJob] Finished parallel chunk processing. ${permanentlyFailedChunkIndices.length} chunks failed permanently.`);
-
-      // --- OpenAI Fallback for Failed Chunks --- 
-      let openAIResults: { chunkIndex: number, words: WordTimestamp[] }[] = [];
-      if (permanentlyFailedChunkIndices.length > 0) {
-        const failedChunksMeta = chunks.filter(c => permanentlyFailedChunkIndices.includes(c.index));
-        openAIResults = await transcribeChunksOpenAI(failedChunksMeta, source.metadata?.languageCode);
+      if (chunks.length === 0) {
+        throw new Error('Audio chunking produced no files.');
       }
 
-      transcriptData = await combineTranscriptions(elevenLabsResultsPath, openAIResults, allChunkIndices);
-    }
+      // Process chunks in parallel with ElevenLabs
+      const limitElevenLabs = pLimit(MAX_CONCURRENT_CHUNKS_ELEVENLABS);
+      const elevenLabsResultsPath = path.join(tempDir, 'elevenlabs_results.jsonl');
+      const permanentlyFailedChunkIndices: number[] = [];
+      let completedChunks = 0;
 
-    // --- Service-Level Fallback (Optional - based on requirements) --- 
-    if (!transcriptData) {
-      console.warn(`[TranscribeJob] Primary transcription (ElevenLabs/Chunking) failed for ${sourceId}. Attempting full OpenAI fallback.`);
-      transcriptData = await transcribeFullFallbackOpenAI(audioFilePath, source.metadata?.languageCode);
-    }
+      console.log(`[TranscribeJob] Processing ${chunks.length} chunks with ElevenLabs (Concurrency: ${MAX_CONCURRENT_CHUNKS_ELEVENLABS})...`);
 
-    // --- Final Update --- 
-    if (transcriptData) {
-      await db.update(sources)
-        .set({
-          textContent: transcriptData.transcript, // Store transcript
-          metadata: { ...(source.metadata || {}), transcriptWords: transcriptData.words, processor: transcriptData.processor }, // Store words and processor
-          processingStatus: 'PENDING', // Ready for next stage
-          processingStage: 'TEXT_ANALYSIS', // Next stage
-          processingError: null,
+      const transcriptionPromises = chunks.map((chunk) =>
+        limitElevenLabs(async () => {
+          let attempt = 0;
+          while (attempt < MAX_CHUNK_RETRIES) {
+            try {
+              const result = await transcribeChunkElevenLabs(chunk.path, chunk.start, languageCode);
+              if (result && result.words) {
+                // Write successful result to file immediately
+                const resultLine = JSON.stringify({ chunkIndex: chunk.index, words: result.words }) + '\n';
+                await fsPromises.appendFile(elevenLabsResultsPath, resultLine);
+                completedChunks++;
+                await job.updateProgress(20 + Math.floor((completedChunks / chunks.length) * 50)); // Progress: 20% -> 70%
+                await job.log(`Chunk ${chunk.index + 1}/${chunks.length} transcribed (ElevenLabs).`);
+                return; // Success for this chunk
+              } else {
+                console.warn(`[TranscribeJob] ElevenLabs transcription attempt ${attempt + 1} for chunk ${chunk.index} returned null or no words.`);
+                throw new Error('ElevenLabs returned no words'); // Treat as failure for retry
+              }
+            } catch (error) {
+              console.error(`[TranscribeJob] Error processing chunk ${chunk.index} (Attempt ${attempt + 1}/${MAX_CHUNK_RETRIES}) with ElevenLabs:`, error);
+              attempt++;
+              if (attempt < MAX_CHUNK_RETRIES) {
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                await job.log(`Retrying chunk ${chunk.index + 1} (Attempt ${attempt + 1}).`);
+              } else {
+                console.error(`[TranscribeJob] Chunk ${chunk.index} failed permanently after ${MAX_CHUNK_RETRIES} attempts (ElevenLabs).`);
+                permanentlyFailedChunkIndices.push(chunk.index);
+                await job.log(`Chunk ${chunk.index + 1} failed permanently (ElevenLabs).`);
+              }
+            }
+          }
         })
-        .where(eq(sources.id, sourceId));
+      );
 
-      console.log(`[TranscribeJob] Transcription successful for sourceId: ${sourceId}. Enqueuing TEXT_ANALYSIS.`);
-      await noteProcessingQueue.add('PROCESS_SOURCE_TEXT', { sourceId });
+      await Promise.all(transcriptionPromises);
+      console.log('[TranscribeJob] Finished initial ElevenLabs chunk processing pass.');
+
+      // Chunk-level fallback to OpenAI if needed
+      let openAIChunkResults: { chunkIndex: number, words: WordTimestamp[] }[] = [];
+      if (permanentlyFailedChunkIndices.length > 0) {
+        await job.log(`Attempting OpenAI fallback for ${permanentlyFailedChunkIndices.length} failed chunks.`);
+        console.log(`[TranscribeJob] Attempting OpenAI fallback for failed chunks: ${permanentlyFailedChunkIndices.join(', ')}`);
+        const chunksForOpenAI = chunks.filter(chunk => permanentlyFailedChunkIndices.includes(chunk.index));
+        openAIChunkResults = await transcribeChunksOpenAI(chunksForOpenAI, languageCode);
+        await job.log(`OpenAI fallback completed for ${openAIChunkResults.length} chunks.`);
+      }
+
+      // Combine results
+      await job.log('Combining transcription results...');
+      const allChunkIndices = chunks.map(c => c.index);
+      transcriptResult = await combineTranscriptions(elevenLabsResultsPath, openAIChunkResults, allChunkIndices);
+        if (transcriptResult) {
+           await job.log('Combined chunk transcriptions successfully.');
+        } else {
+          await job.log('Failed to combine chunk transcriptions.');
+        }
+    }
+
+    // 3. Service-Level Fallback (OpenAI Full File) if primary path failed
+    if (!transcriptResult || !transcriptResult.transcript) {
+      console.warn(`[TranscribeJob] Primary transcription (ElevenLabs direct/chunked) failed for source ${sourceId}. Attempting full OpenAI fallback.`);
+      await job.log('Primary transcription failed. Attempting full OpenAI fallback...');
+      await job.updateProgress(75);
+      transcriptResult = await transcribeFullFallbackOpenAI(audioFilePath, languageCode);
+       if (transcriptResult) {
+           await job.log('OpenAI full fallback transcription successful.');
+       } else {
+           await job.log('OpenAI full fallback transcription failed.');
+       }
+    }
+
+    // 4. Final Check and Update Database
+    if (transcriptResult && transcriptResult.transcript) {
+      console.log(`[TranscribeJob] Transcription successful for source ${sourceId}. Processor: ${transcriptResult.processor}`);
+      await job.log(`Transcription successful. Processor: ${transcriptResult.processor}. Length: ${transcriptResult.transcript.length}`);
+
+      // Determine final status and next stage
+      const nextStage = 'PENDING_AI_ANALYSIS'; // Or similar, depending on your pipeline
+      const nextJobName = 'PROCESS_SOURCE_TEXT'; // The job that handles AI analysis
+
+      await db.update(sources).set({
+        processingStatus: 'COMPLETED', // Mark transcription as complete
+        processingStage: nextStage,
+        processingError: null,
+        extractedText: transcriptResult.transcript,
+        // Store word timings if available, adjust metadata structure as needed
+        metadata: {
+          // Use nullish coalescing operator to ensure metadata is an object before spreading
+          ...(source.metadata ?? {}),
+          wordTimestamps: transcriptResult.words,
+          transcriptionProcessor: transcriptResult.processor,
+          // Persist language safely
+          language: languageCode || (source.metadata as { language?: string } | null)?.language,
+        },
+        updatedAt: new Date(),
+      }).where(eq(sources.id, sourceId));
+
+      // Enqueue the next job in the pipeline (e.g., AI analysis)
+      await noteProcessingQueue.add(nextJobName, { sourceId });
+      console.log(`[TranscribeJob] Enqueued ${nextJobName} job for source ${sourceId}`);
+      await job.updateProgress(100);
+      await job.log('Transcription complete. Enqueued next processing step.');
+
     } else {
-      throw new Error('Transcription failed after all attempts and fallbacks.');
+      throw new Error('Transcription failed after all attempts (including fallback).');
     }
 
   } catch (error: any) {
-    console.error(`[TranscribeJob] FAILED for sourceId: ${sourceId}`, error);
-    finalError = error;
-    await db.update(sources)
-      .set({ processingStatus: 'FAILED', processingStage: 'TRANSCRIPTION', processingError: error.message || 'Unknown transcription error' })
-      .where(eq(sources.id, sourceId));
-    // Optionally re-throw the error if BullMQ should handle final failure state
-    // throw error; 
+    console.error(`[TranscribeJob] FATAL: Transcription failed for source ${sourceId}:`, error);
+    await job.log(`ERROR: ${error.message}`);
+    await db.update(sources).set({
+      processingStatus: 'FAILED',
+      processingStage: 'TRANSCRIPTION_ERROR',
+      processingError: error.message || 'Unknown transcription error',
+      updatedAt: new Date(),
+    }).where(eq(sources.id, sourceId));
+     await job.updateProgress(100); // Mark as complete even on failure for BullMQ UI
+     // Optionally, throw the error again if you want BullMQ to mark the job as failed
+     // throw error;
+
   } finally {
-    // Clean up temporary chunk directory
+    // Clean up temporary directory if it was created
     if (tempDir) {
       try {
         await fsPromises.rm(tempDir, { recursive: true, force: true });
         console.log(`[TranscribeJob] Cleaned up temp directory: ${tempDir}`);
       } catch (cleanupError) {
-        console.error(`[TranscribeJob] Error cleaning up temp directory ${tempDir}:`, cleanupError);
+        console.error(`[TranscribeJob] Failed to clean up temp directory ${tempDir}:`, cleanupError);
       }
     }
-    console.log(`[TranscribeJob] Finished processing sourceId: ${sourceId}. Status: ${finalError ? 'FAILED' : 'SUCCESS'}`);
   }
 }; 

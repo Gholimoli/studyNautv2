@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 *   `GET /api/notes` endpoint implementation (`server/src/core/routes/notes/getNotes.route.ts`) to fetch notes for the authenticated user.
 *   `@server/*` path alias configuration in `server/tsconfig.json`.
 *   Created `docs/` directory with initial documentation files (README, PRD, ARCHITECTURE, backend, frontend, database, job-pipeline, api-endpoints, setup, ui-guidelines, ai-prompts, troubleshooting, lessons-learned, CHANGELOG).
+*   **Refactor:** Enforced <300 LOC per file (except orchestrator jobs), modularized ElevenLabs processor, and improved audio pipeline robustness. Extracted chunking/temp helpers to `elevenlabs.utils.ts`, refactored `elevenlabs.processor.ts` for orchestration-only logic, and standardized config/env usage and metadata access in `transcribeAudio.job.ts`.
 
 ### Changed
 
 *   Refined the Express route handler signature in `getNotes.route.ts` to return `Promise<void>` and explicitly type `Response`.
 *   Updated `server/tsconfig.json` to include the `@server/*` path alias pointing to `src/*`.
+*   **Audio pipeline:** Improved error handling, logging, and modularity. Confirmed all server files are under 300 lines (except orchestrators). End-to-end audio upload, transcription, and note generation tested and working.
 
 ### Fixed
 

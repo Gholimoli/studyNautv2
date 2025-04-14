@@ -1,15 +1,17 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as https from 'https';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import pLimit from 'p-limit';
-import FormData from 'form-data'; // Needs installation: pnpm add form-data
-import { TranscriptData, ElevenLabsTranscriptionResponse, OpenAIWord } from '@shared/types/transcript.types'; // Assuming shared types
-import { processSpecificAudioChunksWithOpenAI } from './openai.processor'; // Assumes openai.processor.ts exists
-
-const execAsync = promisify(exec);
+import FormData from 'form-data';
+import { TranscriptData, ElevenLabsTranscriptionResponse, OpenAIWord } from '@shared/types/transcript.types';
+import { processSpecificAudioChunksWithOpenAI } from './openai.processor';
+import {
+  createTempDir,
+  cleanupTempDir,
+  getAudioDuration,
+  createChunks,
+  ChunkMetadata
+} from './elevenlabs.utils';
 
 // --- Constants (Adjust as needed) ---
 const FILE_SIZE_LIMIT_FOR_CHUNKING = 25 * 1024 * 1024; // 25 MB
@@ -22,93 +24,9 @@ const MIN_CHUNK_DURATION_SECONDS = 10;
 const MAX_CHUNK_DURATION_SECONDS = 600;
 const CHUNK_SIZE_MB = 5; // Target chunk size for splitting
 
-interface ChunkMetadata {
-  path: string;
-  index: number;
-  start: number;
-  end: number;
-}
-
 interface TranscriptionResult {
   chunkIndex: number;
   words: OpenAIWord[]; // Using OpenAIWord as a common structure for adjusted words
-}
-
-// --- Helper: Create Temporary Directory ---
-async function createTempDir(): Promise<string> {
-  const tempDir = path.join(os.tmpdir(), `studynaut-chunks-${Date.now()}`);
-  await fs.promises.mkdir(tempDir, { recursive: true });
-  return tempDir;
-}
-
-// --- Helper: Cleanup Temporary Directory ---
-async function cleanupTempDir(dirPath: string): Promise<void> {
-  try {
-    await fs.promises.rm(dirPath, { recursive: true, force: true });
-    console.log(`[ElevenLabsProcessor] Cleaned up temp directory: ${dirPath}`);
-  } catch (error) {
-    console.error(`[ElevenLabsProcessor] Error cleaning up temp directory ${dirPath}:`, error);
-  }
-}
-
-// --- Helper: Get Audio Duration --- 
-async function getAudioDuration(filePath: string): Promise<number> {
-  try {
-    // ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 <file>
-    const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`);
-    const duration = parseFloat(stdout.trim());
-    if (isNaN(duration)) {
-      throw new Error('ffprobe did not return a valid number for duration');
-    }
-    return duration;
-  } catch (error) {
-    console.error(`[ElevenLabsProcessor] Error getting duration for ${filePath}:`, error);
-    throw new Error(`Failed to get audio duration using ffprobe: ${(error as Error).message}`);
-  }
-}
-
-// --- Helper: Create Audio Chunks --- 
-async function createChunks(audioFilePath: string, tempDir: string): Promise<ChunkMetadata[]> {
-  const fileSize = (await fs.promises.stat(audioFilePath)).size;
-  const duration = await getAudioDuration(audioFilePath);
-  const chunks: ChunkMetadata[] = [];
-  let currentPosition = 0;
-
-  // Calculate estimated chunk duration based on target size, clamped
-  const estimatedBytesPerSecond = fileSize / duration;
-  let chunkDuration = (CHUNK_SIZE_MB * 1024 * 1024) / estimatedBytesPerSecond;
-  chunkDuration = Math.max(MIN_CHUNK_DURATION_SECONDS, Math.min(MAX_CHUNK_DURATION_SECONDS, chunkDuration));
-  
-  console.log(`[ElevenLabsProcessor] Splitting file (${(fileSize / 1024 / 1024).toFixed(2)} MB, ${duration.toFixed(2)}s) into chunks of ~${chunkDuration.toFixed(2)}s`);
-
-  let chunkIndex = 0;
-  while (currentPosition < duration) {
-    const startTime = currentPosition;
-    const endTime = Math.min(currentPosition + chunkDuration, duration);
-    const chunkPath = path.join(tempDir, `chunk_${chunkIndex}.m4a`); // Assume output matches input format or is compatible
-
-    // ffmpeg -i <input> -ss <start> -to <end> -c copy <output>
-    const command = `ffmpeg -i "${audioFilePath}" -ss ${startTime} -to ${endTime} -c copy -y "${chunkPath}"`;
-    try {
-      await execAsync(command);
-      chunks.push({ path: chunkPath, index: chunkIndex, start: startTime, end: endTime });
-      console.log(`[ElevenLabsProcessor] Created chunk ${chunkIndex}: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`);
-    } catch (error) {
-        console.error(`[ElevenLabsProcessor] Error creating chunk ${chunkIndex}:`, error);
-        // Decide if we should throw or continue with potentially missing chunks
-        throw new Error(`Failed to create audio chunk ${chunkIndex} using ffmpeg: ${(error as Error).message}`);
-    }
-
-    currentPosition = endTime;
-    chunkIndex++;
-    // Safety break for potential infinite loops
-    if (chunkIndex > 1000) { 
-        console.error("[ElevenLabsProcessor] Exceeded maximum chunk limit (1000). Aborting chunk creation.");
-        throw new Error("Exceeded maximum chunk limit during audio splitting.");
-    }
-  }
-
-  return chunks;
 }
 
 // --- Core: Transcribe a Single Chunk (ElevenLabs) ---

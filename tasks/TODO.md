@@ -46,12 +46,19 @@
 
 - [x] Define `notes` table schema
 - [x] Implement `ASSEMBLE_NOTE` job
-- [ ] Implement API endpoint to get notes list (`/api/notes`)
-- [ ] Implement API endpoint to get single note details (`/api/notes/:id`)
+- [x] Implement API endpoint to get notes list (`/api/notes`)
+- [x] Implement API endpoint to get single note details (`/api/notes/:id`)
 - [ ] Create frontend components to display notes list
 - [ ] Create frontend component to display detailed note view
 
 ## Phase 8: Study Tools
+
+- [ ] Define schema for flashcards and quizzes
+- [ ] Implement AI prompts for generating flashcards
+- [ ] Implement AI prompts for generating quizzes
+- [ ] Create API endpoints for retrieving study tools
+- [ ] Build frontend components for flashcard review
+- [ ] Build frontend components for quiz taking
 
 ---
 
@@ -61,17 +68,48 @@
 - [x] Implement BullMQ job for audio transcription (`transcribeAudio.job.ts`)
 - [x] Integrate ElevenLabs API for transcription (with chunking, retries, and OpenAI fallback)
 - [x] Update DB and job status throughout pipeline
-- [ ] Create minimal React UI for audio upload and status (frontend)
-- [ ] Display upload progress and show resulting `sourceId` and processing status
-- [ ] Add error handling and user feedback in UI
-- [ ] End-to-end test: upload audio, verify DB, and check transcription result
+- [x] Create minimal React UI for audio upload and status (frontend)
+- [x] Display upload progress and show resulting `sourceId` and processing status
+- [x] Add error handling and user feedback in UI
+- [x] End-to-end test: upload audio, verify DB, and check transcription result
+- [x] Implement `/api/processing/status/:sourceId` endpoint for checking processing status
+- [x] Fix job sequencing in audio processing pipeline
+- [x] Add validation for audio file uploads
+- [x] Improve error handling in audio processing pipeline
+
+## Refactor: File Size & Modularity
+- [x] Enforce <300 LOC per file (except orchestrator jobs)
+- [x] Extract ElevenLabs chunking/temp helpers to elevenlabs.utils.ts
+- [x] Refactor elevenlabs.processor.ts for orchestration-only logic
+- [x] Standardize config/env usage and metadata access in transcribeAudio.job.ts
+- [x] Confirm all server files are under 300 lines (except orchestrators)
+- [x] Add checkpoint commit after successful pipeline test
 
 ---
 
-## Phase 10: UI Testing for Audio Pipeline
+## Phase 10: UI Testing and Optimization
 
-- [ ] Test audio upload UI with various file sizes and formats
-- [ ] Test backend pipeline with ElevenLabs and OpenAI failover
-- [ ] Document any issues or edge cases found during testing
+- [x] Test audio upload UI with various file sizes and formats
+- [x] Test backend pipeline with ElevenLabs and OpenAI failover
+- [x] Document issues and edge cases in audio processing pipeline
+- [x] Basic Audio Pipeline Test UI: Added AudioUploadForm component for testing
+- [x] Optimize audio chunking for better processing speed
+- [x] Add support for additional audio formats
+- [x] Implement progress tracking for individual audio chunks
+- [x] Improve visual feedback during long-running transcription jobs
 
-- [x] Basic Audio Pipeline Test UI: Added a section to the dashboard using AudioUploadForm for manual audio pipeline testing.
+## Phase 11: Documentation and Deployment
+
+- [x] Update architecture documentation with audio processing details
+- [ ] Create deployment guide for production environment
+- [ ] Set up CI/CD pipeline for automated testing and deployment
+- [ ] Create user documentation for audio upload and processing
+- [ ] Implement logging and monitoring for production environment
+
+## Phase 12: Additional Features
+
+- [ ] Implement sharing functionality for notes
+- [ ] Add collaboration features for shared notes
+- [ ] Support for more input sources (e.g., website URLs, RSS feeds)
+- [ ] Implement advanced search functionality (full-text search)
+- [ ] Add support for organizing notes in folders/collections
