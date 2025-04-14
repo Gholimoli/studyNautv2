@@ -146,4 +146,43 @@ router.post('/upload', upload.single('file'), asyncHandler(async (req: Request, 
 }));
 // --- End POST /api/media/upload ---
 
+// --- POST /api/media/youtube ---
+router.post('/youtube', asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user as { id: number } | undefined;
+    if (!user || !user.id) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+    const userId = user.id;
+    const { url } = req.body;
+    if (!url || typeof url !== 'string' || !/^https?:\/\/(www\.)?youtube\.com\/.+|youtu\.be\/.+/.test(url)) {
+      return res.status(400).json({ message: 'A valid YouTube URL is required.' });
+    }
+
+    // Insert new source
+    const newSource: typeof sources.$inferInsert = {
+      userId,
+      sourceType: 'YOUTUBE',
+      originalUrl: url,
+      processingStatus: 'PENDING',
+      processingStage: 'TRANSCRIPTION_PENDING',
+      metadata: {},
+    };
+    const insertedSources = await db.insert(sources).values(newSource).returning({ id: sources.id });
+    if (!insertedSources || insertedSources.length === 0 || !insertedSources[0].id) {
+      throw new Error('Failed to insert source record into database.');
+    }
+    const sourceId = insertedSources[0].id;
+    await noteProcessingQueue.add('PROCESS_YOUTUBE_TRANSCRIPTION', { sourceId });
+    res.status(201).json({
+      sourceId,
+      message: 'YouTube video submitted successfully. Transcript extraction and note generation have started.'
+    });
+  } catch (error) {
+    console.error('[YouTubeRoute] Error in /youtube handler:', error);
+    next(error);
+  }
+}));
+// --- End POST /api/media/youtube ---
+
 export const mediaRoutes = router; 

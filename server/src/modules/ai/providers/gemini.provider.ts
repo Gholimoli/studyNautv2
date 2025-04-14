@@ -29,14 +29,24 @@ export class GeminiProvider implements IAiProvider {
     const requestBody = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        // Map options to Gemini generationConfig
         ...(options?.temperature && { temperature: options.temperature }),
         ...(options?.maxOutputTokens && { maxOutputTokens: options.maxOutputTokens }),
         ...(options?.jsonMode && { responseMimeType: 'application/json' }),
-        // Add other config mappings as needed (topP, topK, etc.)
       },
-      // Add safetySettings if needed
     };
+
+    // --- Detailed Logging ---
+    const promptLength = prompt.length;
+    const promptPreview = prompt.slice(0, 200) + (prompt.length > 200 ? '... [truncated]' : '');
+    console.log('[GeminiProvider] --- Gemini API Request ---');
+    console.log(`[GeminiProvider] Model: ${this.modelName}`);
+    console.log(`[GeminiProvider] Prompt length: ${promptLength} chars`);
+    console.log(`[GeminiProvider] Prompt preview:`, promptPreview);
+    if (options?.maxOutputTokens) {
+      console.log(`[GeminiProvider] maxOutputTokens: ${options.maxOutputTokens}`);
+    }
+    console.log('[GeminiProvider] Request body:', JSON.stringify(requestBody).slice(0, 1000) + (JSON.stringify(requestBody).length > 1000 ? '... [truncated]' : ''));
+    // --- End Logging ---
 
     try {
       console.log(`[GeminiProvider] Calling model ${this.modelName}...`);
@@ -48,18 +58,22 @@ export class GeminiProvider implements IAiProvider {
         body: JSON.stringify(requestBody),
       });
 
-      const responseData = await response.json();
+      const responseText = await response.text();
+      let responseData: any;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error('[GeminiProvider] Failed to parse response JSON:', parseErr);
+        responseData = responseText;
+      }
 
       if (!response.ok) {
         console.error('[GeminiProvider] API Error Response:', responseData);
-        const errorMessage = responseData?.error?.message || `API request failed with status ${response.status}`;
-        return { content: null, errorMessage };
+        console.error(`[GeminiProvider] HTTP Status: ${response.status}`);
+        return { content: null, errorMessage: responseData?.error?.message || `API request failed with status ${response.status}` };
       }
 
-      // Extract content safely
       const generatedText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-      
-      // Extract usage data if available (structure might vary)
       const usage = responseData?.usageMetadata ? {
           promptTokens: responseData.usageMetadata.promptTokenCount || 0,
           completionTokens: responseData.usageMetadata.candidatesTokenCount || 0,
@@ -67,13 +81,19 @@ export class GeminiProvider implements IAiProvider {
       } : undefined;
 
       console.log(`[GeminiProvider] Received response from ${this.modelName}.`);
+      if (usage) {
+        console.log('[GeminiProvider] Usage:', usage);
+      }
       return { 
         content: generatedText,
         usage: usage,
       };
 
     } catch (error) {
-      console.error('[GeminiProvider] Fetch Error:', error);
+      console.error('[GeminiProvider] Fetch Error (full object):', error);
+      if (error instanceof Error && error.stack) {
+        console.error('[GeminiProvider] Error stack:', error.stack);
+      }
       const message = error instanceof Error ? error.message : 'Unknown fetch error';
       return { content: null, errorMessage: `Failed to fetch Gemini API: ${message}` };
     }

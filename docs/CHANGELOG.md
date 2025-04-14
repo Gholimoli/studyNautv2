@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 *   `@server/*` path alias configuration in `server/tsconfig.json`.
 *   Created `docs/` directory with initial documentation files (README, PRD, ARCHITECTURE, backend, frontend, database, job-pipeline, api-endpoints, setup, ui-guidelines, ai-prompts, troubleshooting, lessons-learned, CHANGELOG).
 *   **Refactor:** Enforced <300 LOC per file (except orchestrator jobs), modularized ElevenLabs processor, and improved audio pipeline robustness. Extracted chunking/temp helpers to `elevenlabs.utils.ts`, refactored `elevenlabs.processor.ts` for orchestration-only logic, and standardized config/env usage and metadata access in `transcribeAudio.job.ts`.
+*   Implemented full YouTube pipeline: users can submit YouTube URLs, transcripts are extracted, and notes are generated using Gemini (configurable via .env).
+*   Added robust error handling and dynamic import for youtube-transcript.
+*   Improved Gemini provider logging for easier debugging of large/complex jobs.
+*   Visuals are now generated for YouTube notes as with other sources.
+*   Model selection is now controlled via PRIMARY_AI_PROVIDER in .env.
 
 ### Changed
 

@@ -121,4 +121,57 @@ src/
 
 *   **State Management:** The API server should be largely stateless, relying on sessions/tokens for authentication state.
 *   **Asynchronous Operations:** All I/O operations (DB queries, external API calls, job enqueuing) must be asynchronous (`async/await`).
-*   **Security:** Input validation (Zod), authentication checks, CSRF protection (if needed), rate limiting are crucial. 
+*   **Security:** Input validation (Zod), authentication checks, CSRF protection (if needed), rate limiting are crucial.
+
+## YouTube Pipeline: End-to-End Flow
+
+The YouTube pipeline enables users to submit a YouTube video URL and receive structured, timestamped notes generated from the video's transcript.
+
+### 1. Submission & Endpoint
+- User submits a YouTube URL via the frontend.
+- The backend exposes a POST `/api/media/youtube` endpoint that:
+  - Validates the URL.
+  - Creates a new `sources` record with the original YouTube URL and user ID.
+  - Enqueues a processing job for the YouTube source.
+
+### 2. Transcript Extraction
+- The job pipeline uses a YouTube transcript extraction utility (e.g., `youtube-transcript` library).
+- The utility fetches the transcript with **timestamps** for each segment/line/word (as supported by the API).
+- The transcript is parsed into an array of `{ text, start, end }` objects.
+- If the video is unavailable, has no captions, or is unsupported, the job fails gracefully and updates the source status with an error.
+
+### 3. Data Model & Storage
+- The original YouTube URL is stored in the `sources.originalUrl` field.
+- The full transcript (with timestamps) is stored in the `sources.metadata.transcript` field (as an array of objects).
+- The transcript is linked to the user via the `userId` field on the `sources` table.
+- The processing status and error fields are updated throughout the pipeline.
+
+### 4. AI Analysis & Note Generation
+- Once the transcript is extracted, the pipeline enqueues the AI analysis job (same as for audio/text sources).
+- The AI generates structured notes, visual opportunities, and study tools.
+- The final note is linked to the original YouTube source and user.
+
+### 5. Frontend Display
+- The dashboard displays:
+  - The original YouTube URL (with a link to the video).
+  - The structured note content.
+  - The full, timestamped transcript (optionally with clickable timestamps).
+- Users can track progress/status and view errors if extraction fails.
+
+### 6. Error Handling
+- Handles:
+  - Invalid or unsupported YouTube URLs.
+  - Videos with no captions/transcript.
+  - API/network errors.
+- All errors are logged and surfaced to the user in a user-friendly way.
+
+### 7. Example Transcript Data Structure
+```json
+[
+  { "text": "Welcome to the video...", "start": 0.0, "end": 3.2 },
+  { "text": "Today we'll learn...", "start": 3.2, "end": 7.5 },
+  ...
+]
+```
+
+This ensures that every YouTube note is fully traceable, timestamped, and user-linked, supporting advanced features like jumping to video segments or syncing with study tools. 

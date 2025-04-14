@@ -12,6 +12,7 @@ import { processVisualPlaceholdersJob } from '@/core/jobs/processVisualPlacehold
 import { generateVisualJob } from '@/core/jobs/generateVisual.job';
 import { assembleNoteJob } from '@/core/jobs/assembleNote.job';
 import { processAudioTranscriptionJob } from '@/core/jobs/processAudioTranscription.job';
+import { processYouTubeTranscriptionJob } from '@/core/jobs/processYouTubeTranscription.job';
 // import { generateStudyToolsJob } from '@/core/jobs/generateStudyTools.job'; // Commented out - Phase 8 Task
 
 // --- Configuration --- 
@@ -54,6 +55,9 @@ const worker = new Worker(
           break;
         case 'PROCESS_AUDIO_TRANSCRIPTION':
           await processAudioTranscriptionJob(job);
+          break;
+        case 'PROCESS_YOUTUBE_TRANSCRIPTION':
+          await processYouTubeTranscriptionJob(job);
           break;
         case 'PROCESS_VISUAL_PLACEHOLDERS':
           await processVisualPlaceholdersJob(job);

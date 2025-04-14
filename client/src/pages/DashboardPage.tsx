@@ -16,6 +16,12 @@ export function DashboardPage() {
   const submitTextMutation = useSubmitTextMutation();
   const { data: notesData, isLoading: isLoadingNotes, isError: isErrorNotes, error: notesError } = useGetNotesQuery();
 
+  // --- YouTube form state ---
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [ytStatus, setYtStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+  const [ytMessage, setYtMessage] = useState<string | null>(null);
+  const [ytSourceId, setYtSourceId] = useState<number | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) {
@@ -27,6 +33,34 @@ export function DashboardPage() {
     // Optionally clear the form after submission
     // setText('');
     // setTitle('');
+  };
+
+  // --- YouTube form submit handler ---
+  const handleYoutubeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setYtStatus('pending');
+    setYtMessage(null);
+    setYtSourceId(null);
+    try {
+      const resp = await fetch('/api/media/youtube', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ url: youtubeUrl })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        setYtStatus('success');
+        setYtMessage(data.message || 'YouTube video submitted successfully!');
+        setYtSourceId(data.sourceId);
+      } else {
+        setYtStatus('error');
+        setYtMessage(data.message || 'Failed to submit YouTube video.');
+      }
+    } catch (err: any) {
+      setYtStatus('error');
+      setYtMessage(err.message || 'Network error.');
+    }
   };
 
   return (
@@ -73,6 +107,42 @@ export function DashboardPage() {
             <CardFooter>
               <Button type="submit" disabled={submitTextMutation.isPending}>
                 {submitTextMutation.isPending ? 'Processing...' : 'Generate Notes'}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+
+        {/* YouTube Input Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate Notes from YouTube</CardTitle>
+            <CardDescription>Paste a YouTube video URL to generate timestamped notes.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleYoutubeSubmit}>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="youtube-url">YouTube Video URL</Label>
+                <Input
+                  id="youtube-url"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  value={youtubeUrl}
+                  onChange={e => setYoutubeUrl(e.target.value)}
+                  disabled={ytStatus === 'pending'}
+                  required
+                />
+              </div>
+              {ytStatus === 'error' && ytMessage && (
+                <p className="text-sm text-destructive">{ytMessage}</p>
+              )}
+              {ytStatus === 'success' && ytMessage && (
+                <p className="text-sm text-success">{ytMessage} {ytSourceId && (
+                  <span>Source ID: <span className="font-mono">{ytSourceId}</span></span>
+                )}</p>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" disabled={ytStatus === 'pending'}>
+                {ytStatus === 'pending' ? 'Submitting...' : 'Submit YouTube URL'}
               </Button>
             </CardFooter>
           </form>

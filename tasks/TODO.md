@@ -113,3 +113,22 @@
 - [ ] Support for more input sources (e.g., website URLs, RSS feeds)
 - [ ] Implement advanced search functionality (full-text search)
 - [ ] Add support for organizing notes in folders/collections
+
+## Phase 13: YouTube Pipeline
+- [x] Implement YouTube transcript extraction utility (youtube-transcript or similar) — must extract timestamps and full transcript
+- [x] Add /api/media/youtube endpoint to accept YouTube URLs and enqueue processing
+- [x] Update job pipeline to handle YouTube sources (extract transcript with timestamps, save source URL and transcript for user, enqueue AI analysis, etc.)
+- [x] Add error handling for unavailable/unsupported videos
+- [x] Add frontend UI for submitting YouTube URLs
+- [x] Show progress/status for YouTube processing in UI
+- [x] Display resulting notes in dashboard
+- [x] Update docs with detailed YouTube pipeline notes (flow, data model, error handling, etc.)
+
+## Phase 14: Mistral OCR Pipeline (Images/PDFs)
+- [ ] Integrate Mistral OCR API (or local OCR) for image/PDF text extraction
+- [ ] Add /api/media/upload support for images and PDFs
+- [ ] Update job pipeline to handle OCR sources (extract text, enqueue AI analysis, etc.)
+- [ ] Add error handling for unsupported/failed OCR
+- [ ] Add frontend UI for uploading images and PDFs
+- [ ] Show progress/status for OCR processing in UI
+- [ ] Display resulting notes in dashboard

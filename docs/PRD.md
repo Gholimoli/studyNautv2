@@ -165,4 +165,11 @@ Studynaut aims to be the leading AI-powered learning companion, transforming how
 * Browser extension for easier content import
 * Progressive Web App features (offline access)
 * Gamification elements
-* Integration with other learning platforms or calendars 
+* Integration with other learning platforms or calendars
+
+## [2024-XX-XX] YouTube Pipeline Complete
+- Users can submit YouTube URLs for note generation.
+- Transcripts are extracted (with timestamps) using youtube-transcript.
+- Notes are generated using Gemini (model configurable via .env).
+- Visuals are integrated as with other sources.
+- Robust error handling and logging for large/complex jobs. 
