@@ -8,7 +8,7 @@ import { ensureAuthenticated } from '@server/core/middleware/auth.middleware';
 import { eq, and, desc, count } from 'drizzle-orm';
 import { z } from 'zod';
 
-const router = Router();
+const router: Router = Router();
 
 // Define local interface as workaround for type augmentation issues
 interface AuthenticatedRequest extends Request {

@@ -133,3 +133,18 @@
 - [x] Show progress/status for OCR processing in UI
 - [x] Display resulting notes in dashboard
 - [x] Implementation is robust, matches Mistral's documentation, and includes fallback logic.
+
+### Core Processing Pipeline
+
+*   `[-]` Implement YouTube transcript fetching.
+*   `[-]` Implement PDF text extraction.
+*   `[x]` Implement Audio transcription pipeline (ElevenLabs + Fallback).
+    *   `[x]` Handle Supabase upload.
+    *   `[x]` Queue transcription job.
+    *   `[x]` Job downloads file from Supabase.
+    *   `[x]` Job calls transcription service (ElevenLabs) with local file.
+    *   `[x]` Job handles chunking for large files.
+    *   `[-]` Implement OpenAI fallback for failed chunks.
+    *   `[x]` Job updates DB with transcript/status.
+    *   `[x]` Job enqueues next step (`PROCESS_SOURCE_TEXT`).
+*   `[-]` Implement Image OCR.

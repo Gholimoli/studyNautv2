@@ -1,67 +1,69 @@
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
-import { db } from '@/core/db';
-import { users } from '@/core/db/schema';
+import { db } from '../db/index';
+import { users } from '../db/schema';
+import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
-import * as bcrypt from 'bcryptjs';
 
-// Define user type based on schema (excluding passwordHash)
-type User = Omit<typeof users.$inferSelect, 'passwordHash'>;
+// Define User type structure based on your schema
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  passwordHash: string;
+  // Add other fields as needed (displayName, role, etc.)
+}
 
 export function configurePassport() {
-  // Local Strategy for username/password login
+  // Local strategy for username/password login
   passport.use(new LocalStrategy(
     async (username, password, done) => {
       try {
-        // Find user by username
-        const userRecord = await db.query.users.findFirst({
-          where: eq(users.username, username),
-        });
+        console.log(`[Passport] Attempting login for username: ${username}`);
+        // Find user by username or email
+        const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+        const user = result[0] as User | undefined;
 
-        if (!userRecord) {
-          return done(null, false, { message: 'Incorrect username.' });
+        if (!user) {
+          console.log(`[Passport] User not found: ${username}`);
+          return done(null, false, { message: 'Incorrect username or password.' });
         }
 
-        // Compare password hash
-        const isMatch = await bcrypt.compare(password, userRecord.passwordHash);
-
+        // Compare password
+        const isMatch = await bcrypt.compare(password, user.passwordHash);
         if (!isMatch) {
-          return done(null, false, { message: 'Incorrect password.' });
+          console.log(`[Passport] Incorrect password for user: ${username}`);
+          return done(null, false, { message: 'Incorrect username or password.' });
         }
 
-        // Successful login - return user data (excluding password)
-        const { passwordHash, ...user } = userRecord;
-        return done(null, user as User);
+        console.log(`[Passport] Login successful for user: ${username}, ID: ${user.id}`);
+        return done(null, user);
       } catch (err) {
+        console.error('[Passport] Error during authentication:', err);
         return done(err);
       }
     }
   ));
 
   // Serialize user ID into the session
-  passport.serializeUser((user, done) => {
-    process.nextTick(() => {
-       done(null, (user as User).id); 
-    });
+  passport.serializeUser((user: any, done) => {
+    // console.log('[Passport] Serializing user:', user);
+    done(null, (user as User).id);
   });
 
   // Deserialize user from the session using the ID
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const userRecord = await db.query.users.findFirst({
-        where: eq(users.id, id),
-        columns: { // Explicitly exclude passwordHash
-            passwordHash: false
-        }
-      });
-      if (!userRecord) {
-        return done(new Error('User not found'));
-      }
-      done(null, userRecord as User);
+      // console.log(`[Passport] Deserializing user with ID: ${id}`);
+      const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      const user = result[0] as User | undefined;
+      // console.log('[Passport] Deserialized user found:', user);
+      done(null, user || null); // Pass null if user not found
     } catch (err) {
+      console.error(`[Passport] Error during deserialization for ID: ${id}`, err);
       done(err);
     }
   });
 
-  console.log('[Passport] Configured successfully.');
+  console.log('[Passport] Passport configured.');
 } 

@@ -10,8 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processSourceTextJob = processSourceTextJob;
-const db_1 = require("../../core/db");
-const schema_1 = require("../../core/db/schema");
+const index_1 = require("../db/index");
+const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const ai_service_1 = require("../../modules/ai/ai.service");
 // Import Job Types and Queue
@@ -30,12 +30,12 @@ function processSourceTextJob(job) {
         let sourceRecord;
         try {
             // 1. Update status to PROCESSING and set stage
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({ processingStatus: 'PROCESSING', processingStage: 'AI_ANALYSIS' })
                 .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
             console.log(`[Worker:ProcessSourceText] Set status to PROCESSING for source ID: ${sourceId}`);
             // 2. Fetch the source record
-            sourceRecord = yield db_1.db.query.sources.findFirst({
+            sourceRecord = yield index_1.db.query.sources.findFirst({
                 where: (0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId),
             });
             if (!sourceRecord || !sourceRecord.extractedText) {
@@ -53,7 +53,7 @@ function processSourceTextJob(job) {
             // Combine with existing metadata if any
             const updatedMetadata = Object.assign(Object.assign({}, (sourceRecord.metadata || {})), { aiStructure: aiResult // Contains title, summary, structure array
              });
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({
                 metadata: updatedMetadata,
                 processingStage: 'VISUAL_PROCESSING_PENDING' // Set stage for next step
@@ -69,7 +69,7 @@ function processSourceTextJob(job) {
         catch (error) {
             console.error(`[Worker:ProcessSourceText] Error processing job for source ID: ${sourceId}`, error);
             // Update status to FAILED
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({
                 processingStatus: 'FAILED',
                 processingError: error instanceof Error ? error.message : 'Unknown processing error',

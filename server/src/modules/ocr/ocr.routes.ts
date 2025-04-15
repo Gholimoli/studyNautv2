@@ -3,7 +3,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { ocrService } from './ocr.service';
 
-const router = Router();
+const router: Router = Router();
 const upload = multer({ dest: '/tmp' });
 
 const supportedImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];

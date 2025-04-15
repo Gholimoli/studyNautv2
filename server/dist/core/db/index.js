@@ -37,8 +37,10 @@ exports.db = void 0;
 const node_postgres_1 = require("drizzle-orm/node-postgres");
 const pg_1 = require("pg");
 const schema = __importStar(require("./schema"));
+const dotenv = __importStar(require("dotenv"));
+dotenv.config({ path: '../../.env' }); // Adjust path as needed relative to dist/
 if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is required. Ensure .env is loaded early.');
+    throw new Error('DATABASE_URL environment variable is required.');
 }
 const pool = new pg_1.Pool({
     connectionString: process.env.DATABASE_URL,

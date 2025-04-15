@@ -1,8 +1,8 @@
 import { Job } from 'bullmq';
-import { db } from '@/core/db';
-import { sources } from '@/core/db/schema';
+import { db } from '../db/index';
+import { sources } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import { aiService } from '@/modules/ai/ai.service';
+import { aiService } from '../../modules/ai/ai.service';
 
 // Import Job Types and Queue
 import { JobType, ProcessVisualPlaceholdersPayload } from './job.definition';

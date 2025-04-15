@@ -1,19 +1,26 @@
 {
+  // extends: "../../tsconfig.base.json", // Comment out extends if no base config exists
   "compilerOptions": {
     "target": "ES2016", 
     "module": "CommonJS",
     "outDir": "./dist",
+    "rootDir": "./src",              // Root is just server's source
+    "composite": true,            // Enable being part of composite build
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": "./src",
-    "paths": {
+    "baseUrl": "./src",              // For resolving paths below
+    "paths": { 
       "@/*": ["*"],
       "@server/*": ["*"],
-      "@shared/*": ["../../shared/src/*"]
+      "@shared/*": ["../../shared/src/*"] // Path relative to baseUrl
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules"],
+  "references": [
+    { "path": "../shared" }       // Reference the shared project
+  ]
+  // Removed references
 }

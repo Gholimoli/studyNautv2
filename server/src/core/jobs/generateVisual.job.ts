@@ -1,10 +1,10 @@
 import { Job } from 'bullmq';
-import { db } from '@/core/db';
-import { sources, visuals } from '@/core/db/schema';
+import { db } from '../db/index';
+import { sources, visuals } from '../db/schema';
 import { eq, sql, and, or, not } from 'drizzle-orm';
 import { GenerateVisualPayload, JobType, AssembleNotePayload } from './job.definition';
-import { searchImage } from '@/modules/ai/utils/image-search'; // Import image search utility
-import { noteProcessingQueue } from './queue'; // Import queue
+import { searchImage } from '../../modules/ai/utils/image-search';
+import { noteProcessingQueue } from './queue';
 // import { searchImage } from '@/modules/ai/utils/image-search'; // TODO: Import later
 // import { JobType, AssembleNotePayload } from './job.definition'; // TODO: Import later
 // import { noteProcessingQueue } from './queue'; // TODO: Import later

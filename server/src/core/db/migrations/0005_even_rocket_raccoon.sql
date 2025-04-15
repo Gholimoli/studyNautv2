@@ -1,0 +1,1 @@
+ALTER TABLE "sources" ADD COLUMN "original_storage_path" text;

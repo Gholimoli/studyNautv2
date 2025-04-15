@@ -1,40 +1,39 @@
-import { Router, type Response } from 'express';
-import { db } from '@server/db';
-import { notesTable } from '@server/db/schema';
-import { protect } from '@server/core/auth';
+import { Router, type Response, type Request } from 'express';
+import { db } from '../../db/index';
+import { notes } from '../../db/schema';
+import { ensureAuthenticated } from '../../middleware/auth.middleware';
 import { eq } from 'drizzle-orm';
-import type { RequestWithUser } from '@server/core/auth/auth.types'; // Assuming this type exists
+// If you need RequestWithUser, define it here or use Request & { user: ... } inline
+// import type { RequestWithUser } from '../../middleware/auth.middleware';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * GET /api/notes
  * Retrieves a list of notes for the authenticated user.
  */
-router.get('/', protect, async (req: RequestWithUser, res: Response): Promise<void> => {
-  // req.user should be populated by the 'protect' middleware
-  if (!req.user || !req.user.id) {
-    // This check might be redundant if 'protect' guarantees req.user exists on success
-    // but acts as a type guard and safety net.
-    res.status(401).json({ message: 'User not authenticated properly.' });
-    return; // Explicit return void
+router.get('/', ensureAuthenticated, async (req: Request, res: Response): Promise<void> => {
+  // req.user should be populated by the 'ensureAuthenticated' middleware
+  const user = req.user as { id: number } | undefined;
+  if (!user || !user.id) {
+    res.status(401).json({ message: 'Unauthorized' });
+    return;
   }
-
-  const userId = req.user.id;
+  const userId = user.id;
 
   try {
     const userNotes = await db
       .select({
-        id: notesTable.id,
-        title: notesTable.title,
+        id: notes.id,
+        title: notes.title,
         // TODO: Add contentPreview when schema supports it
-        createdAt: notesTable.createdAt,
-        updatedAt: notesTable.updatedAt,
+        createdAt: notes.createdAt,
+        updatedAt: notes.updatedAt,
         // Add other relevant fields like isArchived, tags, etc.
       })
-      .from(notesTable)
-      .where(eq(notesTable.userId, userId))
-      .orderBy(notesTable.updatedAt); // Consider making sort order configurable?
+      .from(notes)
+      .where(eq(notes.userId, userId))
+      .orderBy(notes.updatedAt); // Consider making sort order configurable?
 
     // Send the response
     res.status(200).json(userNotes);

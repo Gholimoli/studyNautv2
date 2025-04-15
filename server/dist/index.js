@@ -3,18 +3,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
 const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const auth_routes_1 = require("./modules/auth/routes/auth.routes"); // Import auth routes
 const media_routes_1 = require("./modules/media/routes/media.routes"); // Import media routes
-const notes_routes_1 = require("./modules/notes/routes/notes.routes"); // Import notes routes
-const getStatus_route_1 = __importDefault(require("./core/routes/processing/getStatus.route")); // Import the new router
 const passport_1 = __importDefault(require("passport")); // Import passport
 const passport_2 = require("./core/config/passport"); // Import passport config
 const express_session_1 = __importDefault(require("express-session")); // Import express-session
 const connect_pg_simple_1 = __importDefault(require("connect-pg-simple")); // Import pg session store
-dotenv_1.default.config();
+const notes_routes_1 = require("./modules/notes/routes/notes.routes");
+const ocr_routes_1 = require("./modules/ocr/ocr.routes"); // Import OCR routes
 (0, passport_2.configurePassport)(); // Configure Passport strategies
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3001;
@@ -59,10 +59,17 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', auth_routes_1.authRoutes); // Mount auth routes
 app.use('/api/media', media_routes_1.mediaRoutes); // Mount media routes
-app.use('/api/notes', notes_routes_1.notesRoutes); // Mount notes routes
-app.use('/api/processing', getStatus_route_1.default); // Mount processing status routes
-// TODO: Add other module routes (study tools, user profile etc.)
-// TODO: Add global error handler middleware
+app.use('/api/notes', notes_routes_1.notesRoutes);
+app.use('/api/ocr', ocr_routes_1.ocrRoutes); // Mount OCR routes
+// TODO: Add other module routes (notes, etc.)
+// Add global error handler middleware (must be after all routes)
+app.use((err, req, res, next) => {
+    console.error('[Global Error Handler]', err);
+    res.status(err.status || 500).json({
+        message: err.message || 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? err : undefined,
+    });
+});
 // Start server
 app.listen(port, () => {
     console.log(`[server]: Server is running at http://localhost:${port}`);

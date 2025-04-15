@@ -92,4 +92,26 @@ This document summarizes critical insights and challenges encountered during the
 
 *   Created the `/docs` directory structure.
 *   Leveraged existing `.mdc` rules to populate initial documents.
-*   Established the `/update` command workflow (to be used going forward). 
+*   Established the `/update` command workflow (to be used going forward).
+
+## 9. Audio Transcription Pipeline Challenges
+
+### Insights
+
+*   **Job Data vs. Database State:** Background jobs often need specific data passed directly in the job payload (like temporary file paths) or fetched reliably from the database. Relying on data *only* in one place can lead to mismatches.
+*   **Cloud Storage Access:** Jobs running in the worker environment **cannot directly access cloud storage paths** (like Supabase Storage URLs or paths) as if they were local file system paths. Files must be explicitly downloaded to the worker's local filesystem before being processed by tools expecting local file paths (like `ffmpeg` or external APIs requiring file reads).
+*   **Metadata Consistency:** Ensure that data saved in database JSON `metadata` fields matches precisely what consuming processes (like background jobs) expect to find. Field names and structure are critical.
+
+### Challenges Faced
+
+*   **`Storage path missing in metadata` Error:** The audio transcription job failed because the `MediaService` saved the Supabase path to `source.originalStoragePath` while the job expected it in `source.metadata.storagePath`.
+    *   **Fix:** Updated `MediaService` to store the `storagePath` correctly within the `metadata` field during source creation.
+*   **`ENOENT: no such file or directory` Error:** The transcription job tried to use the Supabase path (`user_X/audio/...`) directly as a local path when calling the transcription service (ElevenLabs), which failed as the file wasn't locally present.
+    *   **Fix:** Implemented logic in `processAudioTranscriptionJob` to use the `StorageService` to download the audio file from Supabase to a temporary local directory. Passed the *temporary local path* to the transcription service. Added a `finally` block to ensure the temporary file is deleted after processing.
+    *   **Fix:** Added the required `downloadFile` method to `StorageService` to handle downloading from Supabase.
+
+### Solutions Implemented
+
+*   Ensured consistent metadata handling between `MediaService` and the transcription job.
+*   Implemented a download step in the transcription job to fetch files from cloud storage before local processing.
+*   Added robust cleanup for temporary files using `finally` blocks. 

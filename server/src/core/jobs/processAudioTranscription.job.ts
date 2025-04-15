@@ -1,10 +1,13 @@
 import { Job } from 'bullmq';
-import { db } from '@/core/db';
-import { sources } from '@/core/db/schema';
+import { db } from '../db/index';
+import { sources } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import path from 'path';
-import { processAudioWithElevenLabs } from '@/modules/media/processors/elevenlabs.processor'; // Import the processor
-import { noteProcessingQueue } from '@/core/jobs/queue'; // Import the queue
+import { processAudioWithElevenLabs } from '../../modules/media/processors/elevenlabs.processor';
+import { noteProcessingQueue } from './queue';
+import { storageService } from '../services/storage.service';
+import * as os from 'os';
+import * as fs from 'fs/promises';
 // import { mediaService } from '@/modules/media/media.service'; // Assuming you have a mediaService instance
 
 // Define a type for the expected metadata structure
@@ -29,6 +32,8 @@ export async function processAudioTranscriptionJob(job: Job): Promise<void> {
   console.log(`[Job ${job.id}] Starting PROCESS_AUDIO_TRANSCRIPTION for sourceId: ${sourceId}`);
 
   let source;
+  let tempLocalPath: string | null = null;
+
   try {
     // 1. Fetch the source record
     const sourceResult = await db.select().from(sources).where(eq(sources.id, sourceId)).limit(1);
@@ -53,18 +58,25 @@ export async function processAudioTranscriptionJob(job: Job): Promise<void> {
     // ** Placeholder: Assume metadata stores the relative path **
     const metadata = source.metadata as SourceMetadata | null;
 
-    const relativePath = metadata?.storagePath;
-    if (!relativePath) {
+    const storagePath = metadata?.storagePath;
+    if (!storagePath) {
         throw new Error(`Storage path missing in metadata for source ${sourceId}`);
     }
-    const absoluteFilePath = path.resolve(__dirname, '../../..', relativePath); // Adjust relative path calculation
     const languageCode = metadata?.languageCode;
 
+    // 3b. Download file from Supabase to a temporary local path
+    const tempFilename = `${Date.now()}-${path.basename(storagePath)}`;
+    tempLocalPath = path.join(os.tmpdir(), tempFilename);
+
+    console.log(`[Job ${job.id}] Downloading ${storagePath} from Supabase to ${tempLocalPath}`);
+    await storageService.downloadFile(storagePath, tempLocalPath);
+    console.log(`[Job ${job.id}] Successfully downloaded file to ${tempLocalPath}`);
+
     // 4. Call the actual transcription service (using MediaService or directly)
-    console.log(`[Job ${job.id}] Calling transcription service for file: ${absoluteFilePath}`);
+    console.log(`[Job ${job.id}] Calling transcription service for local file: ${tempLocalPath}`);
     
     // --- Replace simulation with actual call --- 
-    const transcriptResult = await processAudioWithElevenLabs(absoluteFilePath, languageCode);
+    const transcriptResult = await processAudioWithElevenLabs(tempLocalPath, languageCode);
 
     if (!transcriptResult || !transcriptResult.transcript) {
       throw new Error('Transcription failed or returned empty result.');
@@ -107,5 +119,16 @@ export async function processAudioTranscriptionJob(job: Job): Promise<void> {
     }
     // Re-throw the error so BullMQ marks the job as failed
     throw error; 
+  } finally {
+    // 7. Cleanup: Delete the temporary local file if it was created
+    if (tempLocalPath) {
+        try {
+            await fs.unlink(tempLocalPath);
+            console.log(`[Job ${job.id}] Deleted temporary local file: ${tempLocalPath}`);
+        } catch (cleanupError) {
+            console.error(`[Job ${job.id}] Failed to delete temporary local file ${tempLocalPath}:`, cleanupError);
+            // Log the error but don't fail the job just for cleanup failure
+        }
+    }
   }
 } 

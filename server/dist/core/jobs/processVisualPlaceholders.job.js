@@ -10,8 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processVisualPlaceholdersJob = processVisualPlaceholdersJob;
-const db_1 = require("../../core/db");
-const schema_1 = require("../../core/db/schema");
+const index_1 = require("../db/index");
+const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const queue_1 = require("./queue");
 const job_definition_1 = require("./job.definition");
@@ -28,7 +28,7 @@ function processVisualPlaceholdersJob(job) {
         let sourceRecord;
         try {
             // 1. Fetch the source record, ensuring metadata includes aiStructure
-            sourceRecord = yield db_1.db.query.sources.findFirst({
+            sourceRecord = yield index_1.db.query.sources.findFirst({
                 where: (0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId),
                 columns: { metadata: true }, // Only need metadata
             });
@@ -40,11 +40,12 @@ function processVisualPlaceholdersJob(job) {
             if (!visualOpportunities || visualOpportunities.length === 0) {
                 console.log(`[Worker:ProcessVisualPlaceholders] No visual opportunities found for source ID: ${sourceId}. Proceeding to assembly.`);
                 // If no visuals, directly enqueue the final assembly job
-                // await noteProcessingQueue.add(JobType.ASSEMBLE_NOTE, { sourceId }); 
-                // For now, just update status
-                yield db_1.db.update(schema_1.sources)
+                yield index_1.db.update(schema_1.sources)
                     .set({ processingStage: 'ASSEMBLY_PENDING' })
                     .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
+                // Enqueue the next job
+                yield queue_1.noteProcessingQueue.add(job_definition_1.JobType.ASSEMBLE_NOTE, { sourceId });
+                console.log(`[Worker:ProcessVisualPlaceholders] Enqueued ${job_definition_1.JobType.ASSEMBLE_NOTE} job for source ID: ${sourceId}`);
                 return; // Nothing more to do in this job
             }
             console.log(`[Worker:ProcessVisualPlaceholders] Found ${visualOpportunities.length} visual opportunities for source ID: ${sourceId}.`);
@@ -54,7 +55,7 @@ function processVisualPlaceholdersJob(job) {
                     console.warn(`[Worker:ProcessVisualPlaceholders] Skipping invalid visual opportunity for source ${sourceId}:`, opp);
                     return null;
                 }
-                const newVisual = yield db_1.db.insert(schema_1.visuals).values({
+                const newVisual = yield index_1.db.insert(schema_1.visuals).values({
                     sourceId: sourceId,
                     placeholderId: opp.placeholderId,
                     description: opp.description,
@@ -74,7 +75,7 @@ function processVisualPlaceholdersJob(job) {
             const createdVisualIds = (yield Promise.all(visualCreationPromises)).filter(id => id !== null);
             console.log(`[Worker:ProcessVisualPlaceholders] Successfully created ${createdVisualIds.length} visual records and enqueued jobs for source ID: ${sourceId}.`);
             // 3. Update source stage
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({ processingStage: 'GENERATING_VISUALS' })
                 .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
             console.log(`[Worker:ProcessVisualPlaceholders] Successfully finished job for source ID: ${sourceId}`);
@@ -82,7 +83,7 @@ function processVisualPlaceholdersJob(job) {
         catch (error) {
             console.error(`[Worker:ProcessVisualPlaceholders] Error processing job for source ID: ${sourceId}`, error);
             // Update status to FAILED
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({
                 processingStatus: 'FAILED',
                 processingError: error instanceof Error ? error.message : 'Error processing visual placeholders',

@@ -1,8 +1,8 @@
 import { Job } from 'bullmq';
-import { db } from '@/core/db';
-import { sources, visuals, notes } from '@/core/db/schema';
+import { db } from '../db/index';
+import { sources, visuals, notes } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import { AiStructuredContent, LessonBlock } from '@/modules/ai/types/ai.types';
+import { AiStructuredContent, LessonBlock } from '../../modules/ai/types/ai.types';
 import { AssembleNotePayload } from './job.definition';
 import { marked } from 'marked'; // For Markdown to HTML conversion
 

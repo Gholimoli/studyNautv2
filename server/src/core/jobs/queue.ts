@@ -1,5 +1,5 @@
-import { Queue } from 'bullmq';
-import { redisConnectionOptions } from '@/core/config/redis';
+import { Queue, Worker } from 'bullmq';
+import { redisConnectionOptions } from '../config/redis';
 
 export const NOTE_PROCESSING_QUEUE = 'note-processing';
 

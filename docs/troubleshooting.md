@@ -74,6 +74,15 @@ This guide addresses common issues encountered in the Studynaut application and 
     *   **Solution**: Ensure all necessary services or external clients (DB, AI providers) are correctly initialized within the worker context.
 *   **Problem**: Clearing stuck jobs (Development Only).
     *   **Solution**: Use a Redis client (`redis-cli`) to inspect queues (`KEYS bull:*:*`, `LRANGE bull:<queue_name>:waiting 0 -1`). You can flush the *entire* Redis instance with `FLUSHALL` ( **Use with extreme caution - all Redis data will be lost!** ).
+*   **Problem**: Jobs fail with `TypeError: ... is not a constructor`
+    *   **Solution**: Check for ESM/CJS import issues in worker files
+    *   **Solution**: Try restarting the worker and server
+*   **Problem**: Job fails with `Storage path missing in metadata for source X`
+    *   **Cause**: The job expected the Supabase file path in `source.metadata.storagePath`, but it was missing or stored elsewhere (e.g., `source.originalStoragePath`).
+    *   **Solution**: Ensure the service creating the `source` record (e.g., `MediaService`) correctly saves the path to `metadata.storagePath`. Restart the server process after fixing.
+*   **Problem**: Job fails with `ENOENT: no such file or directory` when processing a file (e.g., `stat 'user_X/audio/...'` fails).
+    *   **Cause**: The job is treating a cloud storage path (Supabase path) as a local filesystem path. Files in cloud storage must be explicitly downloaded first.
+    *   **Solution**: Modify the job logic (`processAudioTranscriptionJob` in this case) to use `StorageService.downloadFile` to download the file from Supabase to a temporary local path *before* attempting to process it. Ensure the temporary file is deleted afterwards (using a `finally` block).
 
 ## API Integration Issues
 

@@ -13,9 +13,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.notesRoutes = void 0;
 const express_1 = require("express");
-const db_1 = require("../../../core/db");
-const schema_1 = require("../../../core/db/schema");
-const auth_middleware_1 = require("../../../core/middleware/auth.middleware");
+const db_1 = require("@server/core/db");
+const schema_1 = require("@server/core/db/schema");
+const auth_middleware_1 = require("@server/core/middleware/auth.middleware");
 const drizzle_orm_1 = require("drizzle-orm");
 const zod_1 = require("zod");
 const router = (0, express_1.Router)();
@@ -23,7 +23,6 @@ const router = (0, express_1.Router)();
 const GetNotesListQuerySchema = zod_1.z.object({
     limit: zod_1.z.coerce.number().int().min(1).max(100).optional().default(20),
     offset: zod_1.z.coerce.number().int().min(0).optional().default(0),
-    sourceType: zod_1.z.enum(['YOUTUBE', 'TEXT', 'AUDIO', 'PDF', 'IMAGE']).optional(), // Assumes schema has sourceType
     favorite: zod_1.z.enum(['true', 'false']).optional().transform(val => val === 'true'), // Assumes schema has favorite
 });
 // Use the explicit AuthenticatedRequest type
@@ -39,12 +38,9 @@ const getNotesListHandler = (req, res, next) => __awaiter(void 0, void 0, void 0
         res.status(400).json({ message: 'Invalid query parameters', errors: validation.error.format() });
         return;
     }
-    const { limit, offset, sourceType, favorite } = validation.data;
+    const { limit, offset, favorite } = validation.data;
     try {
         const conditions = [(0, drizzle_orm_1.eq)(schema_1.notes.userId, userId)];
-        if (sourceType) {
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.notes.sourceType, sourceType)); // Requires notes.sourceType in schema
-        }
         if (favorite !== undefined) {
             conditions.push((0, drizzle_orm_1.eq)(schema_1.notes.favorite, favorite)); // Requires notes.favorite in schema
         }
@@ -57,8 +53,7 @@ const getNotesListHandler = (req, res, next) => __awaiter(void 0, void 0, void 0
             title: schema_1.notes.title,
             createdAt: schema_1.notes.createdAt,
             updatedAt: schema_1.notes.updatedAt,
-            sourceType: schema_1.notes.sourceType, // Requires notes.sourceType
-            favorite: schema_1.notes.favorite, // Requires notes.favorite
+            favorite: schema_1.notes.favorite,
         })
             .from(schema_1.notes)
             .where(whereCondition)

@@ -1,0 +1,7 @@
+{
+  "files": [], // No input files here, just references
+  "references": [
+    { "path": "./server" },
+    { "path": "./shared" }
+  ]
+} 

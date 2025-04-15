@@ -67,8 +67,19 @@ class GeminiProvider {
             const requestBody = {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: Object.assign(Object.assign(Object.assign({}, ((options === null || options === void 0 ? void 0 : options.temperature) && { temperature: options.temperature })), ((options === null || options === void 0 ? void 0 : options.maxOutputTokens) && { maxOutputTokens: options.maxOutputTokens })), ((options === null || options === void 0 ? void 0 : options.jsonMode) && { responseMimeType: 'application/json' })),
-                // Add safetySettings if needed
             };
+            // --- Detailed Logging ---
+            const promptLength = prompt.length;
+            const promptPreview = prompt.slice(0, 200) + (prompt.length > 200 ? '... [truncated]' : '');
+            console.log('[GeminiProvider] --- Gemini API Request ---');
+            console.log(`[GeminiProvider] Model: ${this.modelName}`);
+            console.log(`[GeminiProvider] Prompt length: ${promptLength} chars`);
+            console.log(`[GeminiProvider] Prompt preview:`, promptPreview);
+            if (options === null || options === void 0 ? void 0 : options.maxOutputTokens) {
+                console.log(`[GeminiProvider] maxOutputTokens: ${options.maxOutputTokens}`);
+            }
+            console.log('[GeminiProvider] Request body:', JSON.stringify(requestBody).slice(0, 1000) + (JSON.stringify(requestBody).length > 1000 ? '... [truncated]' : ''));
+            // --- End Logging ---
             try {
                 console.log(`[GeminiProvider] Calling model ${this.modelName}...`);
                 const response = yield fetch(apiUrl, {
@@ -78,28 +89,40 @@ class GeminiProvider {
                     },
                     body: JSON.stringify(requestBody),
                 });
-                const responseData = yield response.json();
+                const responseText = yield response.text();
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                }
+                catch (parseErr) {
+                    console.error('[GeminiProvider] Failed to parse response JSON:', parseErr);
+                    responseData = responseText;
+                }
                 if (!response.ok) {
                     console.error('[GeminiProvider] API Error Response:', responseData);
-                    const errorMessage = ((_a = responseData === null || responseData === void 0 ? void 0 : responseData.error) === null || _a === void 0 ? void 0 : _a.message) || `API request failed with status ${response.status}`;
-                    return { content: null, errorMessage };
+                    console.error(`[GeminiProvider] HTTP Status: ${response.status}`);
+                    return { content: null, errorMessage: ((_a = responseData === null || responseData === void 0 ? void 0 : responseData.error) === null || _a === void 0 ? void 0 : _a.message) || `API request failed with status ${response.status}` };
                 }
-                // Extract content safely
                 const generatedText = ((_f = (_e = (_d = (_c = (_b = responseData === null || responseData === void 0 ? void 0 : responseData.candidates) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.content) === null || _d === void 0 ? void 0 : _d.parts) === null || _e === void 0 ? void 0 : _e[0]) === null || _f === void 0 ? void 0 : _f.text) || null;
-                // Extract usage data if available (structure might vary)
                 const usage = (responseData === null || responseData === void 0 ? void 0 : responseData.usageMetadata) ? {
                     promptTokens: responseData.usageMetadata.promptTokenCount || 0,
                     completionTokens: responseData.usageMetadata.candidatesTokenCount || 0,
                     totalTokens: responseData.usageMetadata.totalTokenCount || 0,
                 } : undefined;
                 console.log(`[GeminiProvider] Received response from ${this.modelName}.`);
+                if (usage) {
+                    console.log('[GeminiProvider] Usage:', usage);
+                }
                 return {
                     content: generatedText,
                     usage: usage,
                 };
             }
             catch (error) {
-                console.error('[GeminiProvider] Fetch Error:', error);
+                console.error('[GeminiProvider] Fetch Error (full object):', error);
+                if (error instanceof Error && error.stack) {
+                    console.error('[GeminiProvider] Error stack:', error.stack);
+                }
                 const message = error instanceof Error ? error.message : 'Unknown fetch error';
                 return { content: null, errorMessage: `Failed to fetch Gemini API: ${message}` };
             }

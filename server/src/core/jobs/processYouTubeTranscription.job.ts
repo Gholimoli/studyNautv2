@@ -1,9 +1,10 @@
 import { Job } from 'bullmq';
-import { db } from '@/core/db';
-import { sources } from '@/core/db/schema';
+import { db } from '../db/index';
+import { sources } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { noteProcessingQueue } from './queue';
-import { getYouTubeTranscript } from '@/modules/media/utils/youtubeTranscript';
+import { getYouTubeTranscript } from '../../modules/media/utils/youtubeTranscript';
+import { JobType } from './job.definition';
 
 export async function processYouTubeTranscriptionJob(job: Job<{ sourceId: number }>): Promise<void> {
   const { sourceId } = job.data;

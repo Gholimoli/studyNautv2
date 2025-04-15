@@ -10,7 +10,7 @@ interface AuthenticatedRequest extends Request {
   user?: { id: number; /* Add other needed user props */ };
 }
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * GET /api/processing/status/:sourceId

@@ -1,12 +1,17 @@
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller';
-import { ensureAuthenticated } from '@/core/middleware/auth.middleware';
+import { ensureAuthenticated } from '../../../core/middleware/auth.middleware';
+// import { validateRequest } from '../../../core/middleware/validation.middleware';
+import { registerUserSchema } from '../types/auth.schemas';
 
-const router = Router();
+const router: Router = Router();
 
-router.post('/register', authController.register);
-router.post('/login', authController.login);
-router.get('/status', authController.status);
+// Public routes (no ensureAuthenticated)
+router.post('/register', /* validateRequest(registerUserSchema), */ authController.register);
+// router.post('/login', /* validateRequest(loginSchema), */ authController.login);
+
+// Routes requiring authentication
 router.post('/logout', ensureAuthenticated, authController.logout);
+router.get('/status', ensureAuthenticated, authController.status);
 
 export const authRoutes = router;

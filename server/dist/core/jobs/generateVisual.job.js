@@ -10,13 +10,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateVisualJob = generateVisualJob;
-const db_1 = require("../../core/db");
-const schema_1 = require("../../core/db/schema");
+const index_1 = require("../db/index");
+const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const job_definition_1 = require("./job.definition");
-const image_search_1 = require("../../modules/ai/utils/image-search"); // Import image search utility
-const queue_1 = require("./queue"); // Import queue
-// import { searchImage } from '../../modules/ai/utils/image-search'; // TODO: Import later
+const image_search_1 = require("../../modules/ai/utils/image-search");
+const queue_1 = require("./queue");
+// import { searchImage } from '@/modules/ai/utils/image-search'; // TODO: Import later
 // import { JobType, AssembleNotePayload } from './job.definition'; // TODO: Import later
 // import { noteProcessingQueue } from './queue'; // TODO: Import later
 /**
@@ -34,11 +34,11 @@ function generateVisualJob(job) {
         let visualRecord;
         try {
             // 1. Update visual status to PROCESSING
-            yield db_1.db.update(schema_1.visuals)
+            yield index_1.db.update(schema_1.visuals)
                 .set({ status: 'PROCESSING' })
                 .where((0, drizzle_orm_1.eq)(schema_1.visuals.id, visualId));
             // 2. Fetch visual record
-            visualRecord = yield db_1.db.query.visuals.findFirst({
+            visualRecord = yield index_1.db.query.visuals.findFirst({
                 where: (0, drizzle_orm_1.eq)(schema_1.visuals.id, visualId),
             });
             if (!visualRecord) {
@@ -54,21 +54,21 @@ function generateVisualJob(job) {
             if (!imageUrl) {
                 // Handle search/generation failure
                 console.warn(`[Worker:GenerateVisual] Image search failed for visual ID: ${visualId}`);
-                yield db_1.db.update(schema_1.visuals)
+                yield index_1.db.update(schema_1.visuals)
                     .set({ status: 'FAILED', errorMessage: 'Image search failed' })
                     .where((0, drizzle_orm_1.eq)(schema_1.visuals.id, visualId));
                 // Do not re-throw, allow other visuals to process. Failure is recorded.
             }
             else {
                 // 4. Update visual record with URL and mark COMPLETED
-                yield db_1.db.update(schema_1.visuals)
+                yield index_1.db.update(schema_1.visuals)
                     .set({ status: 'COMPLETED', imageUrl: imageUrl })
                     .where((0, drizzle_orm_1.eq)(schema_1.visuals.id, visualId));
                 console.log(`[Worker:GenerateVisual] Successfully processed visual ID: ${visualId}.`);
             }
             // 5. Check if all visuals for this sourceId are done (COMPLETED or FAILED)
             // Need to use a raw query or count for this check
-            const pendingOrProcessing = yield db_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
+            const pendingOrProcessing = yield index_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
                 .from(schema_1.visuals)
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.visuals.sourceId, sourceId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PENDING'), (0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PROCESSING'))));
             const remainingCount = (_b = (_a = pendingOrProcessing[0]) === null || _a === void 0 ? void 0 : _a.count) !== null && _b !== void 0 ? _b : 1; // Assume 1 if query fails, to be safe
@@ -78,7 +78,7 @@ function generateVisualJob(job) {
                 const assemblyPayload = { sourceId };
                 yield queue_1.noteProcessingQueue.add(job_definition_1.JobType.ASSEMBLE_NOTE, assemblyPayload);
                 // Update source stage
-                yield db_1.db.update(schema_1.sources).set({ processingStage: 'ASSEMBLY_PENDING' }).where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
+                yield index_1.db.update(schema_1.sources).set({ processingStage: 'ASSEMBLY_PENDING' }).where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
             }
             console.log(`[Worker:GenerateVisual] Finished job for visual ID: ${visualId}`);
         }
@@ -86,7 +86,7 @@ function generateVisualJob(job) {
             console.error(`[Worker:GenerateVisual] Error processing job for visual ID: ${visualId}`, error);
             // Update visual status to FAILED if an unexpected error occurred
             if (visualId) { // Ensure visualId is defined before trying to update
-                yield db_1.db.update(schema_1.visuals)
+                yield index_1.db.update(schema_1.visuals)
                     .set({
                     status: 'FAILED',
                     errorMessage: error instanceof Error ? error.message : 'Unknown error during visual generation'
@@ -94,7 +94,7 @@ function generateVisualJob(job) {
                     .where((0, drizzle_orm_1.eq)(schema_1.visuals.id, visualId));
                 // After failure, still check if this was the *last* pending one
                 try {
-                    const pendingOrProcessing = yield db_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
+                    const pendingOrProcessing = yield index_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
                         .from(schema_1.visuals)
                         .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.visuals.sourceId, sourceId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PENDING'), (0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PROCESSING'))));
                     const remainingCount = (_d = (_c = pendingOrProcessing[0]) === null || _c === void 0 ? void 0 : _c.count) !== null && _d !== void 0 ? _d : 1;
@@ -102,7 +102,7 @@ function generateVisualJob(job) {
                         console.log(`[Worker:GenerateVisual] All visuals processed (including failures) for source ID: ${sourceId}. Enqueuing assembly.`);
                         const assemblyPayload = { sourceId };
                         yield queue_1.noteProcessingQueue.add(job_definition_1.JobType.ASSEMBLE_NOTE, assemblyPayload);
-                        yield db_1.db.update(schema_1.sources).set({ processingStage: 'ASSEMBLY_PENDING' }).where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
+                        yield index_1.db.update(schema_1.sources).set({ processingStage: 'ASSEMBLY_PENDING' }).where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
                     }
                 }
                 catch (checkError) {

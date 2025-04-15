@@ -1,17 +1,24 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as https from 'https';
+import { Job } from 'bullmq'; // Keep existing unrelated imports
+import { db } from '@/core/db/index'; // Revert to alias
+import { sources } from '@/core/db/schema'; // Revert to alias
+import { eq } from 'drizzle-orm';
+import path from 'path';
+import fsPromises from 'fs/promises';
+import { TranscriptData, ElevenLabsTranscriptionResponse, OpenAIWord } from '@shared/types/transcript.types'; // Revert to alias
+import os from 'os';
 import pLimit from 'p-limit';
+import OpenAI from 'openai';
+import { noteProcessingQueue } from '@/core/jobs/queue'; // Revert to alias
+import { JobType } from '@/core/jobs/job.definition'; // Revert to alias
+import fetch from 'node-fetch';
 import FormData from 'form-data';
-import { TranscriptData, ElevenLabsTranscriptionResponse, OpenAIWord } from '@shared/types/transcript.types';
+import { Readable } from 'stream';
+import fs from 'fs';
+import https from 'https'; 
+import { storageService } from '@/core/services/storage.service'; // Revert to alias
 import { processSpecificAudioChunksWithOpenAI } from './openai.processor';
-import {
-  createTempDir,
-  cleanupTempDir,
-  getAudioDuration,
-  createChunks,
-  ChunkMetadata
-} from './elevenlabs.utils';
+import { createAudioChunks, checkFileSize, getAudioDuration } from '@/utils/audio.utils'; // Revert to alias
+import { createTempDir, cleanupTempDir, createChunks, ChunkMetadata } from './elevenlabs.utils'; // Keep local utils
 
 // --- Constants (Adjust as needed) ---
 const FILE_SIZE_LIMIT_FOR_CHUNKING = 25 * 1024 * 1024; // 25 MB

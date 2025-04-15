@@ -42,7 +42,6 @@ Guidelines:
 - **Crucially**: Identify 3-5 key concepts or sections in the text that would benefit MOST from a visual aid (e.g., diagram, image, chart). For each opportunity:
     1. Add a corresponding block to the "structure" array with type "visual_placeholder". Set its "content" to a brief description of the visual (e.g., "Diagram of the water cycle"). Assign a unique "placeholderId" (e.g., "VISUAL_1", "VISUAL_2").
     2. Add a corresponding object to the "visualOpportunities" array. Include the matching "placeholderId", a detailed "description" of the visual needed, and optionally a good "searchQuery" for finding it.
-- **IMPORTANT**: EVERY block object within the "structure" array MUST include the "content" field, even if the content seems redundant for types like 'bullet_list'. For 'visual_placeholder', the content is the description.
 - Ensure the ENTIRE output is a single, valid JSON object starting with { and ending with }.
 - Do NOT include any text or explanations outside the main JSON object.
 - Use null for optional fields if they are not applicable or generated.

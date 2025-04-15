@@ -27,6 +27,7 @@ export const sources = pgTable('sources', {
   sourceType: sourceTypeEnum('source_type').notNull(),
   originalUrl: varchar('original_url', { length: 2048 }),
   originalFilename: varchar('original_filename', { length: 255 }),
+  originalStoragePath: text('original_storage_path'),
   extractedText: text('extracted_text'),
   metadata: jsonb('metadata'),
   processingStatus: processingStatusEnum('processing_status').default('PENDING').notNull(),

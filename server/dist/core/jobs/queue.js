@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.noteProcessingQueue = exports.NOTE_PROCESSING_QUEUE = void 0;
 const bullmq_1 = require("bullmq");
-const redis_1 = require("../../core/config/redis");
+const redis_1 = require("../config/redis");
 exports.NOTE_PROCESSING_QUEUE = 'note-processing';
 // Create the main queue instance
 exports.noteProcessingQueue = new bullmq_1.Queue(exports.NOTE_PROCESSING_QUEUE, {

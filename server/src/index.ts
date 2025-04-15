@@ -3,14 +3,14 @@ dotenv.config();
 
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
-import { authRoutes } from '@/modules/auth/routes/auth.routes'; // Import auth routes
-import { mediaRoutes } from '@/modules/media/routes/media.routes'; // Import media routes
+import { authRoutes } from './modules/auth/routes/auth.routes'; // Import auth routes
+import { mediaRoutes } from './modules/media/routes/media.routes'; // Import media routes
 import passport from 'passport'; // Import passport
-import { configurePassport } from '@/core/config/passport'; // Import passport config
+import { configurePassport } from './core/config/passport'; // Import passport config
 import session from 'express-session'; // Import express-session
 import connectPgSimple from 'connect-pg-simple'; // Import pg session store
-import { notesRoutes } from '@/modules/notes/routes/notes.routes';
-import { ocrRoutes } from '@/modules/ocr/ocr.routes'; // Import OCR routes
+import { notesRoutes } from './modules/notes/routes/notes.routes';
+import { ocrRoutes } from './modules/ocr/ocr.routes'; // Import OCR routes
 
 configurePassport(); // Configure Passport strategies
 

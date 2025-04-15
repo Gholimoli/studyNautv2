@@ -1,10 +1,13 @@
 import { Job } from 'bullmq';
-import { db } from '@/core/db';
-import { sources, visuals } from '@/core/db/schema';
+import { db } from '../db/index';
+import { sources, visuals } from '../db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { AiStructuredContent } from '@/modules/ai/types/ai.types'; // Assuming schema type is here
+import { AiStructuredContent } from '../../modules/ai/types/ai.types';
 import { noteProcessingQueue } from './queue';
 import { JobType, ProcessVisualPlaceholdersPayload, GenerateVisualPayload } from './job.definition';
+
+// Access the type via AiStructuredContent
+type VisualOpportunity = NonNullable<AiStructuredContent['visualOpportunities']>[number];
 
 /**
  * Job processor for handling visual placeholders identified by AI.
@@ -29,7 +32,7 @@ export async function processVisualPlaceholdersJob(job: Job<ProcessVisualPlaceho
     }
 
     const aiStructure = (sourceRecord.metadata as any).aiStructure as AiStructuredContent;
-    const visualOpportunities = aiStructure.visualOpportunities;
+    const visualOpportunities: VisualOpportunity[] | null | undefined = aiStructure.visualOpportunities;
 
     if (!visualOpportunities || visualOpportunities.length === 0) {
       console.log(`[Worker:ProcessVisualPlaceholders] No visual opportunities found for source ID: ${sourceId}. Proceeding to assembly.`);

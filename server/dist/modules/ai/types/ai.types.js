@@ -6,21 +6,21 @@ const zod_1 = require("zod");
 // Schema for a single block in the lesson structure
 exports.lessonBlockSchema = zod_1.z.object({
     type: zod_1.z.enum(['heading', 'subheading', 'paragraph', 'bullet_list', 'key_term', 'visual_placeholder']), // Added visual_placeholder
-    content: zod_1.z.string(),
-    level: zod_1.z.number().nullable().optional(), // Allow number, null, or undefined
-    items: zod_1.z.array(zod_1.z.string()).nullable().optional(), // Allow array, null, or undefined
-    placeholderId: zod_1.z.string().nullable().optional(), // Allow string, null, or undefined
+    content: zod_1.z.string().optional(), // Allow content to be optional to handle AI omissions
+    level: zod_1.z.number().nullable().optional(), // Allow null for level as well, keep optional
+    items: zod_1.z.array(zod_1.z.string()).nullable().optional(), // Allow null for items, keep optional
+    placeholderId: zod_1.z.string().nullable().optional(), // Allow null for placeholderId, keep optional
 });
 // Schema for the overall lesson structure returned by AI
 exports.aiStructuredContentSchema = zod_1.z.object({
     title: zod_1.z.string().min(1, 'Title cannot be empty'),
-    summary: zod_1.z.string().optional(), // Optional brief summary
+    summary: zod_1.z.string().nullable().optional(), // Allow null or undefined
     structure: zod_1.z.array(exports.lessonBlockSchema),
     visualOpportunities: zod_1.z.array(zod_1.z.object({
         placeholderId: zod_1.z.string(), // ID matching a placeholder in the structure
         description: zod_1.z.string(), // Description of the desired visual
         searchQuery: zod_1.z.string().optional(), // Optional optimized query for image search
-    })).optional(),
+    })).nullable().optional(), // Allow null or undefined
 });
 // Schema for a Quiz Question
 exports.aiQuizQuestionSchema = zod_1.z.object({

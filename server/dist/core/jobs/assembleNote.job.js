@@ -10,8 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.assembleNoteJob = assembleNoteJob;
-const db_1 = require("../../core/db");
-const schema_1 = require("../../core/db/schema");
+const index_1 = require("../db/index");
+const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const marked_1 = require("marked"); // For Markdown to HTML conversion
 /**
@@ -24,10 +24,10 @@ function assembleNoteJob(job) {
         console.log(`[Worker:AssembleNote] Starting job for source ID: ${sourceId}`);
         let sourceRecord;
         try {
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({ processingStage: 'ASSEMBLING_NOTE' })
                 .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
-            sourceRecord = yield db_1.db.query.sources.findFirst({
+            sourceRecord = yield index_1.db.query.sources.findFirst({
                 where: (0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId),
                 with: {
                     visuals: true,
@@ -94,24 +94,23 @@ function assembleNoteJob(job) {
             });
             const htmlContent = marked_1.marked.parse(markdownContent);
             // Use transaction for note creation and source update?
-            yield db_1.db.insert(schema_1.notes).values({
+            yield index_1.db.insert(schema_1.notes).values({
                 sourceId: sourceId,
                 userId: sourceRecord.userId,
                 title: aiStructure.title,
-                sourceType: sourceRecord.sourceType,
                 markdownContent: markdownContent,
                 htmlContent: htmlContent,
                 favorite: false,
             });
             console.log(`[Worker:AssembleNote] Note record created for source ID: ${sourceId}`);
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({ processingStatus: 'COMPLETED', processingStage: 'COMPLETED' })
                 .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
             console.log(`[Worker:AssembleNote] Successfully finished job for source ID: ${sourceId}. Source marked COMPLETED.`);
         }
         catch (error) {
             console.error(`[Worker:AssembleNote] Error processing job for source ID: ${sourceId}`, error);
-            yield db_1.db.update(schema_1.sources)
+            yield index_1.db.update(schema_1.sources)
                 .set({
                 processingStatus: 'FAILED',
                 processingError: error instanceof Error ? error.message : 'Error assembling note content',

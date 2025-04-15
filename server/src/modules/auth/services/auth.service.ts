@@ -1,8 +1,8 @@
-import { db } from '@/core/db';
-import { users } from '@/core/db/schema';
+import { db } from '../../../core/db/index';
+import { users } from '../../../core/db/schema';
 import { RegisterUserDto } from '../types/auth.schemas';
-import { eq } from 'drizzle-orm';
-import * as bcrypt from 'bcryptjs'; // Import bcryptjs
+import { eq, or } from 'drizzle-orm';
+import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS = 10; // Define salt rounds
 

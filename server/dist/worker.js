@@ -48,14 +48,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const bullmq_1 = require("bullmq");
 const ioredis_1 = __importDefault(require("ioredis"));
 const dotenv = __importStar(require("dotenv"));
-const path = __importStar(require("path"));
-// Load .env file relative to the dist/ directory
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load .env file from the project root (server directory)
+dotenv.config(); // Simplified call
 // Import your job processor functions (create these files later)
-const processSourceText_job_1 = require("./core/jobs/processSourceText.job");
-const processVisualPlaceholders_job_1 = require("./core/jobs/processVisualPlaceholders.job");
-const generateVisual_job_1 = require("./core/jobs/generateVisual.job");
-const assembleNote_job_1 = require("./core/jobs/assembleNote.job");
+const processSourceText_job_1 = require("@/core/jobs/processSourceText.job");
+const processVisualPlaceholders_job_1 = require("@/core/jobs/processVisualPlaceholders.job");
+const generateVisual_job_1 = require("@/core/jobs/generateVisual.job");
+const assembleNote_job_1 = require("@/core/jobs/assembleNote.job");
+const processAudioTranscription_job_1 = require("@/core/jobs/processAudioTranscription.job");
+const processYouTubeTranscription_job_1 = require("@/core/jobs/processYouTubeTranscription.job");
 // import { generateStudyToolsJob } from '@/core/jobs/generateStudyTools.job'; // Commented out - Phase 8 Task
 // --- Configuration --- 
 const QUEUE_NAME = process.env.BULLMQ_QUEUE_NAME || 'note-processing';
@@ -85,6 +86,12 @@ const worker = new bullmq_1.Worker(QUEUE_NAME, (job) => __awaiter(void 0, void 0
             // Add cases for your actual job names and call processors
             case 'PROCESS_SOURCE_TEXT':
                 yield (0, processSourceText_job_1.processSourceTextJob)(job);
+                break;
+            case 'PROCESS_AUDIO_TRANSCRIPTION':
+                yield (0, processAudioTranscription_job_1.processAudioTranscriptionJob)(job);
+                break;
+            case 'PROCESS_YOUTUBE_TRANSCRIPTION':
+                yield (0, processYouTubeTranscription_job_1.processYouTubeTranscriptionJob)(job);
                 break;
             case 'PROCESS_VISUAL_PLACEHOLDERS':
                 yield (0, processVisualPlaceholders_job_1.processVisualPlaceholdersJob)(job);
@@ -143,5 +150,16 @@ function shutdown() {
         process.exit(0);
     });
 }
-process.on('SIGINT', shutdown); // CTRL+C
-process.on('SIGTERM', shutdown); // Kill command 
+// Wrap async shutdown call in a sync handler
+process.on('SIGINT', () => {
+    shutdown().catch(err => {
+        console.error('[Worker] Error during SIGINT shutdown:', err);
+        process.exit(1);
+    });
+});
+process.on('SIGTERM', () => {
+    shutdown().catch(err => {
+        console.error('[Worker] Error during SIGTERM shutdown:', err);
+        process.exit(1);
+    });
+});

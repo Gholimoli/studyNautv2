@@ -4,6 +4,7 @@
  */
 export const JobType = {
   PROCESS_SOURCE_TEXT: 'PROCESS_SOURCE_TEXT',
+  PROCESS_AUDIO_TRANSCRIPTION: 'PROCESS_AUDIO_TRANSCRIPTION',
   PROCESS_VISUAL_PLACEHOLDERS: 'PROCESS_VISUAL_PLACEHOLDERS',
   GENERATE_VISUAL: 'GENERATE_VISUAL',
   ASSEMBLE_NOTE: 'ASSEMBLE_NOTE',
@@ -11,7 +12,7 @@ export const JobType = {
   // Add other job types here (e.g., TRANSCRIBE_AUDIO)
 } as const; // Use 'as const' for stricter typing
 
-export type JobName = typeof JobType[keyof typeof JobType];
+export type JobName = keyof typeof JobType;
 
 // Define payload types for each job if needed
 export interface ProcessSourceTextPayload {
