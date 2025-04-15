@@ -10,6 +10,7 @@ import { configurePassport } from '@/core/config/passport'; // Import passport c
 import session from 'express-session'; // Import express-session
 import connectPgSimple from 'connect-pg-simple'; // Import pg session store
 import { notesRoutes } from '@/modules/notes/routes/notes.routes';
+import { ocrRoutes } from '@/modules/ocr/ocr.routes'; // Import OCR routes
 
 configurePassport(); // Configure Passport strategies
 
@@ -63,9 +64,17 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes); // Mount auth routes
 app.use('/api/media', mediaRoutes); // Mount media routes
 app.use('/api/notes', notesRoutes);
+app.use('/api/ocr', ocrRoutes); // Mount OCR routes
 // TODO: Add other module routes (notes, etc.)
 
-// TODO: Add global error handler middleware
+// Add global error handler middleware (must be after all routes)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('[Global Error Handler]', err);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err : undefined,
+  });
+});
 
 // Start server
 app.listen(port, () => {

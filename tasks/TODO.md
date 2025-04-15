@@ -125,10 +125,11 @@
 - [x] Update docs with detailed YouTube pipeline notes (flow, data model, error handling, etc.)
 
 ## Phase 14: Mistral OCR Pipeline (Images/PDFs)
-- [ ] Integrate Mistral OCR API (or local OCR) for image/PDF text extraction
-- [ ] Add /api/media/upload support for images and PDFs
-- [ ] Update job pipeline to handle OCR sources (extract text, enqueue AI analysis, etc.)
-- [ ] Add error handling for unsupported/failed OCR
-- [ ] Add frontend UI for uploading images and PDFs
-- [ ] Show progress/status for OCR processing in UI
-- [ ] Display resulting notes in dashboard
+- [x] Integrate Mistral OCR API (or local OCR) for image/PDF text extraction
+- [x] Add /api/media/upload support for images and PDFs
+- [x] Update job pipeline to handle OCR sources (extract text, enqueue AI analysis, etc.)
+- [x] Add error handling for unsupported/failed OCR
+- [x] Add frontend UI for uploading images and PDFs
+- [x] Show progress/status for OCR processing in UI
+- [x] Display resulting notes in dashboard
+- [x] Implementation is robust, matches Mistral's documentation, and includes fallback logic.

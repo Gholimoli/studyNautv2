@@ -22,6 +22,18 @@ export function DashboardPage() {
   const [ytMessage, setYtMessage] = useState<string | null>(null);
   const [ytSourceId, setYtSourceId] = useState<number | null>(null);
 
+  // --- OCR PDF state ---
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfOcrResult, setPdfOcrResult] = useState<string | null>(null);
+  const [pdfOcrStatus, setPdfOcrStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+  const [pdfOcrError, setPdfOcrError] = useState<string | null>(null);
+
+  // --- OCR Image state ---
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageOcrResult, setImageOcrResult] = useState<string | null>(null);
+  const [imageOcrStatus, setImageOcrStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+  const [imageOcrError, setImageOcrError] = useState<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) {
@@ -60,6 +72,97 @@ export function DashboardPage() {
     } catch (err: any) {
       setYtStatus('error');
       setYtMessage(err.message || 'Network error.');
+    }
+  };
+
+  const handlePdfOcrSubmit = async (e: React.FormEvent) => {
+    console.log('[handlePdfOcrSubmit] Form submitted');
+    e.preventDefault();
+    if (!pdfFile) {
+      console.log('[handlePdfOcrSubmit] No PDF file selected');
+      return;
+    }
+    setPdfOcrStatus('pending');
+    setPdfOcrResult(null);
+    setPdfOcrError(null);
+    
+    console.log('[handlePdfOcrSubmit] Creating FormData');
+    const formData = new FormData();
+    formData.append('file', pdfFile);
+    
+    try {
+      console.log('[handlePdfOcrSubmit] Initiating fetch to /api/ocr/pdf');
+      const resp = await fetch('/api/ocr/pdf', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      console.log(`[handlePdfOcrSubmit] Fetch response status: ${resp.status}`);
+
+      // Try parsing as JSON, but catch if it's not
+      let data;
+      let responseTextForError = ''; // Store text in case of parse error
+      try {
+        // Clone the response to read body twice (once for json, once for text on error)
+        const responseClone = resp.clone(); 
+        data = await resp.json();
+        console.log('[handlePdfOcrSubmit] Parsed response JSON:', data);
+      } catch (parseError) {
+        console.error('[handlePdfOcrSubmit] Failed to parse response as JSON:', parseError);
+        // Read the text from the *cloned* response if JSON parsing fails
+        responseTextForError = await resp.clone().text(); 
+        console.error('[handlePdfOcrSubmit] Raw response text:', responseTextForError.substring(0, 500));
+        setPdfOcrStatus('error');
+        if (responseTextForError.trim().startsWith('<')) {
+          setPdfOcrError('Server returned an invalid HTML response instead of JSON.');
+        } else {
+          setPdfOcrError('Failed to parse server response (not valid JSON).');
+        }
+        return; // Stop execution
+      }
+
+      if (resp.ok) {
+        setPdfOcrStatus('success');
+        setPdfOcrResult(data.text || '[No text found]');
+      } else {
+        // Use the parsed JSON data for error message if available
+        setPdfOcrStatus('error');
+        setPdfOcrError(data?.message || 'OCR request failed on server (no specific message).');
+      }
+    } catch (err: any) {
+      // This catches network errors or errors before fetch completes
+      console.error('[handlePdfOcrSubmit] Fetch or other error:', err); 
+      setPdfOcrStatus('error');
+      setPdfOcrError(err.message || 'Network error or client-side issue.');
+    }
+  };
+
+  const handleImageOcrSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!imageFile) return;
+    setImageOcrStatus('pending');
+    setImageOcrResult(null);
+    setImageOcrError(null);
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    try {
+      const resp = await fetch('/api/ocr/image', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        setImageOcrStatus('success');
+        setImageOcrResult(data.text || '[No text found]');
+      } else {
+        setImageOcrStatus('error');
+        setImageOcrError(data.message || 'OCR failed.');
+      }
+    } catch (err: any) {
+      setImageOcrStatus('error');
+      setImageOcrError(err.message || 'Network error.');
     }
   };
 
@@ -153,6 +256,54 @@ export function DashboardPage() {
           <h2 className="text-xl font-semibold mb-4">Test Audio Pipeline</h2>
           <AudioUploadForm />
         </section>
+
+        {/* PDF OCR Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>OCR PDF</CardTitle>
+            <CardDescription>Upload a PDF to extract text using OCR.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handlePdfOcrSubmit}>
+            <CardContent className="grid gap-4">
+              <Input type="file" accept="application/pdf" onChange={e => setPdfFile(e.target.files?.[0] || null)} />
+              {pdfOcrStatus === 'error' && pdfOcrError && (
+                <p className="text-sm text-destructive">{pdfOcrError}</p>
+              )}
+              {pdfOcrStatus === 'success' && pdfOcrResult && (
+                <Textarea value={pdfOcrResult} readOnly rows={8} />
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" disabled={pdfOcrStatus === 'pending' || !pdfFile}>
+                {pdfOcrStatus === 'pending' ? 'Processing...' : 'Extract PDF Text'}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+
+        {/* Image OCR Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>OCR Image</CardTitle>
+            <CardDescription>Upload an image to extract text using OCR.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleImageOcrSubmit}>
+            <CardContent className="grid gap-4">
+              <Input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} />
+              {imageOcrStatus === 'error' && imageOcrError && (
+                <p className="text-sm text-destructive">{imageOcrError}</p>
+              )}
+              {imageOcrStatus === 'success' && imageOcrResult && (
+                <Textarea value={imageOcrResult} readOnly rows={8} />
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" disabled={imageOcrStatus === 'pending' || !imageFile}>
+                {imageOcrStatus === 'pending' ? 'Processing...' : 'Extract Image Text'}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
 
         {/* Recent Notes List Card */}
         <Card>

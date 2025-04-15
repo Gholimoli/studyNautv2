@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 *   Improved Gemini provider logging for easier debugging of large/complex jobs.
 *   Visuals are now generated for YouTube notes as with other sources.
 *   Model selection is now controlled via PRIMARY_AI_PROVIDER in .env.
+*   Implemented and debugged Mistral OCR pipeline for both images and PDFs.
+*   Fixed provider interface alignment and TypeScript errors.
+*   Added robust logging and error handling for all OCR flows.
+*   Confirmed end-to-end success for image and PDF OCR with Mistral as primary provider.
 
 ### Changed
 

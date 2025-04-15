@@ -1,0 +1,100 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+- Mistral OCR Pipeline: Architecture & Usage Guide
+1. Overview
+The Mistral OCR pipeline enables extraction of text from PDFs and images using the Mistral AI API as the primary provider. It is designed for reliability, with failover to a secondary provider (e.g., OpenAI or Gemini) if Mistral fails. The pipeline exposes REST endpoints for PDF and image OCR, validates inputs, and returns structured results.
+2. Architecture
+High-Level Flow
+Client uploads a PDF or image via REST endpoint.
+Backend receives the file, validates, and stores it temporarily.
+OCR Service:
+Calls Mistral API for OCR.
+If Mistral fails, falls back to the secondary provider.
+Result is parsed, structured, and returned to the client.
+Key Components
+Express Router: Handles /ocr/pdf and /ocr/image endpoints.
+File Upload Middleware: (e.g., multer) for handling multipart/form-data.
+OCR Service: Encapsulates provider logic, failover, and result parsing.
+Provider Adapters: Abstract API calls to Mistral and fallback providers.
+Zod Schemas: Validate request and response payloads.
+Error Handling: Consistent, user-friendly error responses.
+3. Endpoints
+A. PDF OCR Endpoint
+URL: POST /api/ocr/pdf
+Content-Type: multipart/form-data
+Body: PDF file under the field name file
+Response: JSON with extracted text and metadata
+Example Request
+Apply to .env
+Run
+"
+Example Response
+Apply to .env
+}
+B. Image OCR Endpoint
+URL: POST /api/ocr/image
+Content-Type: multipart/form-data
+Body: Image file under the field name file
+Response: JSON with extracted text and metadata
+Example Request
+Apply to .env
+Run
+"
+Example Response
+Apply to .env
+}
+4. Failover Logic
+Primary: Mistral API (using MISTRAL_API_KEY from .env)
+Fallback: OpenAI, Gemini, or another provider (as configured)
+Mechanism: If the primary provider returns an error or times out, the pipeline automatically retries with the fallback provider and annotates the response with the provider used.
+5. Provider Configuration
+.env Example
+Apply to .env
+'
+Provider Adapter Example (TypeScript)
+Apply to .env
+}
+6. API Call Syntax
+Mistral OCR API
+Endpoint: https://api.mistral.ai/v1/ocr
+Method: POST
+Headers:
+Authorization: Bearer <MISTRAL_API_KEY>
+Content-Type: application/pdf or image/png etc.
+Body: Raw file data (PDF or image)
+Example (Node.js/axios)
+Apply to .env
+;
+7. Error Handling & Validation
+Input Validation: Use Zod to ensure only valid files are accepted.
+Error Responses: Return HTTP 400 for bad requests, 500 for provider errors, with clear messages.
+Logging: Log provider errors and failover events for observability.
+8. Sample Express Router (TypeScript)
+Apply to .env
+;
+9. Security & Best Practices
+API Keys: Store in .env, never hardcode.
+File Handling: Remove temp files after processing.
+Rate Limiting: Protect endpoints from abuse.
+CORS: Restrict to trusted origins.
+10. Extending the Pipeline
+Add more providers by implementing new adapters.
+Support more file types by extending validation logic.
+Enhance result structure with bounding boxes, confidence scores, etc.
+11. Summary Table
+| Endpoint | Method | Field | File Type | Provider(s) | Fallback | Response Fields |
+|------------------|--------|-------|-------------------|---------------------|----------|------------------------|
+| /api/ocr/pdf | POST | file | PDF (.pdf) | Mistral, fallback | Yes | provider, text, pages |
+| /api/ocr/image | POST | file | Image (.png...) | Mistral, fallback | Yes | provider, text, meta |
+12. References
+Mistral API Docs
+OpenAI API Docs
+Express Multer Docs
+Zod Validation
+If you need a full implementation or want to see the actual code for any part (e.g., the provider adapters, Zod schemas, or the full router), just ask!
