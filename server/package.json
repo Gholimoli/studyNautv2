@@ -61,6 +61,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-local": "^1.0.38",
     "@types/pg": "^8.11.12",
+    "@types/qs": "^6.9.18",
     "concurrently": "^9.1.2",
     "drizzle-kit": "^0.30.6",
     "nodemon": "^3.1.9",

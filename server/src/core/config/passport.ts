@@ -17,26 +17,27 @@ interface User {
 export function configurePassport() {
   // Local strategy for username/password login
   passport.use(new LocalStrategy(
-    async (username, password, done) => {
+    { usernameField: 'email' },
+    async (email, password, done) => {
       try {
-        console.log(`[Passport] Attempting login for username: ${username}`);
-        // Find user by username or email
-        const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+        console.log(`[Passport] Attempting login for email: ${email}`);
+        // Find user by email
+        const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
         const user = result[0] as User | undefined;
 
         if (!user) {
-          console.log(`[Passport] User not found: ${username}`);
-          return done(null, false, { message: 'Incorrect username or password.' });
+          console.log(`[Passport] User not found: ${email}`);
+          return done(null, false, { message: 'Incorrect email or password.' });
         }
 
         // Compare password
         const isMatch = await bcrypt.compare(password, user.passwordHash);
         if (!isMatch) {
-          console.log(`[Passport] Incorrect password for user: ${username}`);
-          return done(null, false, { message: 'Incorrect username or password.' });
+          console.log(`[Passport] Incorrect password for user: ${email}`);
+          return done(null, false, { message: 'Incorrect email or password.' });
         }
 
-        console.log(`[Passport] Login successful for user: ${username}, ID: ${user.id}`);
+        console.log(`[Passport] Login successful for user: ${email}, ID: ${user.id}`);
         return done(null, user);
       } catch (err) {
         console.error('[Passport] Error during authentication:', err);

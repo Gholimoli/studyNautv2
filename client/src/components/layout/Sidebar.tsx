@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from "@/lib/utils"; // Assuming a utility for className merging
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert
 import {
     LayoutDashboard,
     StickyNote,
@@ -12,8 +14,11 @@ import {
     ChevronDown,
     ChevronRight,
     Star,
-    Settings // Example icons
+    Settings,
+    AlertCircle // Icon for error
 } from "lucide-react";
+import { useFolders, FolderWithCount } from '@/hooks/useFolderQueries'; // Import the hook and type
+import { CreateFolderDialog } from '@/components/folders/CreateFolderDialog'; // Import the dialog
 
 interface NavItemProps {
     href: string;
@@ -49,92 +54,149 @@ const NavItem: React.FC<NavItemProps> = ({ href, icon: Icon, label, count, isAct
 );
 
 interface FolderItemProps {
-    label: string;
-    count: number;
-    isActive?: boolean;
-    // Add state for expansion later
+    folder: FolderWithCount; // Use the fetched folder data type
+    level?: number; // To handle indentation for nesting
+    isActive?: boolean; // TODO: Determine active folder based on route/params
 }
 
-const FolderItem: React.FC<FolderItemProps> = ({ label, count, isActive }) => {
-    // Basic implementation - Needs state for expansion
-    const [isOpen, setIsOpen] = React.useState(false); // Example state
+const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
     const Icon = isOpen ? ChevronDown : ChevronRight;
+    const hasChildren = folder.children && folder.children.length > 0;
 
     return (
         <div>
             <button
                 onClick={() => setIsOpen(!isOpen)}
+                disabled={!hasChildren} // Disable toggle if no children
+                style={{ paddingLeft: `${0.75 + level * 1.25}rem` }} // Dynamic indentation (adjust multiplier as needed)
                 className={cn(
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
-                     isActive && "bg-muted text-foreground" // Indicate active folder section
+                    "flex w-full items-center gap-2 rounded-md py-2 pr-3 text-sm font-medium transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
+                    isActive && "bg-muted text-foreground", // Active state
+                    !hasChildren && "cursor-default hover:bg-transparent" // Style for non-expandable items
                 )}
             >
-                <Icon className="h-4 w-4" />
-                <Folder className="h-4 w-4 mr-1" />
-                <span>{label}</span>
-                <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    {count}
+                {hasChildren ? (
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                ) : (
+                    <span className="w-4 h-4 flex-shrink-0"></span> // Placeholder for alignment
+                )}
+                <Folder className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate flex-grow text-left">{folder.name}</span>
+                <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground flex-shrink-0">
+                    {folder.noteCount}
                 </span>
+                {/* Add Context Menu Trigger here later */}
             </button>
-            {/* Conditionally render sub-items based on isOpen state */}
-            {isOpen && (
+            {/* Render children recursively */}
+            {isOpen && hasChildren && (
                 <div className="mt-1 space-y-1">
-                    {/* Example Sub-Items - Replace with dynamic data later */}
-                    <NavItem href="#" icon={StickyNote} label="Sub Note 1" isSubItem isActive={false} />
-                    <NavItem href="#" icon={StickyNote} label="Sub Note 2" isSubItem isActive={false} />
+                    {folder.children.map((childFolder) => (
+                        <FolderItem 
+                            key={childFolder.id} 
+                            folder={childFolder} 
+                            level={level + 1} 
+                            isActive={false} // Pass active state down if needed
+                        />
+                    ))}
                 </div>
             )}
         </div>
     );
 };
 
+// Recursive component to render the folder list
+interface FolderListProps {
+    folders: FolderWithCount[];
+}
+
+const FolderList: React.FC<FolderListProps> = ({ folders }) => {
+    if (!folders || folders.length === 0) {
+        return <p className="px-4 text-sm text-muted-foreground">No folders yet.</p>;
+    }
+    return (
+        <div className="space-y-1">
+            {folders.map((folder) => (
+                <FolderItem key={folder.id} folder={folder} isActive={false} />
+            ))}
+        </div>
+    );
+};
+
 function Sidebar() {
-    // Placeholder active state - replace with actual router logic
-    const currentPath = "/dashboard"; // Example
+    const currentPath = "/dashboard"; // Placeholder
+    const { data: folders, isLoading, error, isError } = useFolders();
+    const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false); // State for dialog
 
     return (
-        <aside className="hidden md:flex h-full w-64 flex-col border-r border-border bg-muted/40">
-            <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-                {/* Optional: Add Logo or Title here if different from Header */}
-                <span className="font-semibold">Navigation</span>
-            </div>
-            <div className="flex-1 overflow-y-auto py-4">
-                <nav className="grid items-start px-2 text-sm font-medium lg:px-4 space-y-1">
-                    {/* Main Navigation */}
-                    <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" isActive={currentPath === '/dashboard'} />
-                    <NavItem href="/notes" icon={StickyNote} label="All Notes" count={12} isActive={currentPath === '/notes'} />
-                    <NavItem href="/mind-maps" icon={Network} label="Mind Maps" count={3} isActive={currentPath === '/mind-maps'} />
-                    <NavItem href="/flashcards" icon={Layers3} label="Flashcards" count={5} isActive={currentPath === '/flashcards'} />
-                    <NavItem href="/quizzes" icon={CheckSquare} label="Quizzes" count={2} isActive={currentPath === '/quizzes'} />
+        <>
+            <aside className="hidden md:flex h-full w-64 flex-col border-r border-border bg-muted/40">
+                <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+                    {/* Optional: Add Logo or Title here if different from Header */}
+                    <span className="font-semibold">Navigation</span>
+                </div>
+                <div className="flex-1 overflow-y-auto py-4">
+                    <nav className="grid items-start px-2 text-sm font-medium lg:px-4 space-y-1">
+                        {/* Main Navigation */}
+                        <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" isActive={currentPath === '/dashboard'} />
+                        <NavItem href="/notes" icon={StickyNote} label="All Notes" count={12} isActive={currentPath === '/notes'} />
+                        <NavItem href="/mind-maps" icon={Network} label="Mind Maps" count={3} isActive={currentPath === '/mind-maps'} />
+                        <NavItem href="/flashcards" icon={Layers3} label="Flashcards" count={5} isActive={currentPath === '/flashcards'} />
+                        <NavItem href="/quizzes" icon={CheckSquare} label="Quizzes" count={2} isActive={currentPath === '/quizzes'} />
 
-                    {/* Folders Section */}
-                    <div className="pt-4">
-                        <div className="flex items-center justify-between px-3 py-2">
-                            <h3 className="text-xs font-semibold uppercase text-muted-foreground">Folders</h3>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                                <Plus className="h-4 w-4" />
-                                <span className="sr-only">New Folder</span>
-                            </Button>
+                        {/* Folders Section */}
+                        <div className="pt-4">
+                            <div className="flex items-center justify-between px-3 py-2">
+                                <h3 className="text-xs font-semibold uppercase text-muted-foreground">Folders</h3>
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-6 w-6" 
+                                    onClick={() => setIsCreateFolderOpen(true)} // Set state to true
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    <span className="sr-only">New Folder</span>
+                                </Button>
+                            </div>
+                            <div className="px-2 lg:px-4 mt-2">
+                                {isLoading && (
+                                    <div className="space-y-2">
+                                        <Skeleton className="h-8 w-full" />
+                                        <Skeleton className="h-8 w-full" />
+                                        <Skeleton className="h-8 w-full opacity-75" />
+                                    </div>
+                                )}
+                                {isError && error && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle>Error</AlertTitle>
+                                        <AlertDescription>
+                                            {error.message || 'Could not load folders.'}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                                {!isLoading && !isError && folders && (
+                                    <FolderList folders={folders} />
+                                )}
+                            </div>
                         </div>
-                        <div className="space-y-1 px-2 lg:px-4">
-                            {/* Replace with dynamic folder data */}
-                            <FolderItem label="All Notes" count={12} isActive={false}/>
-                            <FolderItem label="Physics" count={5} isActive={false}/>
-                            <FolderItem label="Mathematics" count={3} isActive={true}/> {/* Example active folder */}
-                            <FolderItem label="History" count={4} isActive={false}/>
-                            <FolderItem label="Programming" count={0} isActive={false}/>
-                        </div>
-                    </div>
-                </nav>
-            </div>
-            {/* Optional Bottom Section (Favorites, Settings) */}
-            <div className="mt-auto border-t p-4">
-                 <nav className="space-y-1">
-                    <NavItem href="/favorites" icon={Star} label="Favorites" isActive={currentPath === '/favorites'} />
-                    <NavItem href="/settings" icon={Settings} label="Settings" isActive={currentPath === '/settings'} />
-                </nav>
-            </div>
-        </aside>
+                    </nav>
+                </div>
+                {/* Optional Bottom Section (Favorites, Settings) */}
+                <div className="mt-auto border-t p-4">
+                     <nav className="space-y-1">
+                        <NavItem href="/favorites" icon={Star} label="Favorites" isActive={currentPath === '/favorites'} />
+                        <NavItem href="/settings" icon={Settings} label="Settings" isActive={currentPath === '/settings'} />
+                    </nav>
+                </div>
+            </aside>
+
+            {/* Render the Dialog component outside the aside */}
+            <CreateFolderDialog 
+                isOpen={isCreateFolderOpen} 
+                onOpenChange={setIsCreateFolderOpen} 
+            />
+        </>
     );
 }
 

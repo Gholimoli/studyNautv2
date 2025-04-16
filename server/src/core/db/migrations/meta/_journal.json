@@ -43,6 +43,20 @@
       "when": 1744710935312,
       "tag": "0005_even_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1744816863757,
+      "tag": "0006_normal_reaper",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1744819803325,
+      "tag": "0007_volatile_bloodscream",
+      "breakpoints": true
     }
   ]
 }

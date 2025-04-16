@@ -4,11 +4,20 @@ import ReactDOM from 'react-dom/client'
 import './index.css'
 import { RouterProvider } from '@tanstack/react-router'
 import { router } from './router' // Import the router instance
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from '@/lib/query-client'; // Import from the new file
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools' // Optional DevTools
 
-// Create a client
-const queryClient = new QueryClient();
+// // Create a client - REMOVED
+// export const queryClient = new QueryClient({
+//   defaultOptions: {
+//     queries: {
+//       // Configure global query options if needed
+//       // staleTime: 1000 * 60 * 5, // e.g., 5 minutes
+//       retry: 1, // Default retry attempts
+//     },
+//   },
+// });
 
 const rootElement = document.getElementById('root')!;
 if (!rootElement.innerHTML) { // Ensure root is not already rendered (for HMR)

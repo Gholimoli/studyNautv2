@@ -114,4 +114,25 @@ This document summarizes critical insights and challenges encountered during the
 
 *   Ensured consistent metadata handling between `MediaService` and the transcription job.
 *   Implemented a download step in the transcription job to fetch files from cloud storage before local processing.
-*   Added robust cleanup for temporary files using `finally` blocks. 
+*   Added robust cleanup for temporary files using `finally` blocks.
+
+## 10. Circular Dependencies
+
+### Insights
+
+*   **Circular Dependencies:** Be mindful of import cycles, especially between core setup files (like `main.tsx` and `router.tsx`) and configuration/utility files (like `queryClient`). A common issue arises when the router needs the `queryClient` for pre-load checks (`beforeLoad`) while the main app setup also needs the router. **Solution:** Instantiate and export shared instances like `queryClient` from a dedicated, low-level utility file (e.g., `src/lib/query-client.ts`) that doesn't import higher-level modules like the router or main app component. 
+
+## 11. Authentication Flow Debugging
+
+### Insights
+
+*   **404 on Login POST:** If the frontend sends `POST /api/auth/login` but gets a 404, double-check that the route definition for `POST /login` is not commented out or missing in the relevant backend routes file (e.g., `auth.routes.ts`).
+*   **401 "Missing credentials" (Passport):** If `passport.authenticate('local')` returns a 401/400 without hitting controller logs, ensure the `LocalStrategy` is configured correctly. Specifically, check the `usernameField` option (e.g., `{ usernameField: 'email' }`) matches the field name sent from the frontend form (`req.body.email` vs `req.body.username`).
+*   **Post-Login Refetch Failure ("Missing queryFn"):** Calling `queryClient.fetchQuery({ queryKey: [...] })` requires TanStack Query to know the corresponding `queryFn`. If no component using the hook defining that query key (e.g., `useAuthStatus`) is mounted, `fetchQuery` will fail unless the `queryFn` is explicitly provided *within the `fetchQuery` call itself*. This is common when triggering refetches programmatically immediately after mutations (like login) before the UI has necessarily re-rendered with components that use the target query hook.
+*   **Post-Login 401 on Status Check:** If login succeeds but an immediate subsequent request (like `GET /api/auth/status` during a pre-navigation check or component mount) fails with 401, it might be a timing issue. The browser/server session might not be fully established. Explicitly `await queryClient.fetchQuery(...)` for the status *after* the login mutation succeeds and *before* navigating can help ensure the session is recognized.
+
+### Solutions Implemented
+
+*   Uncommented the `POST /login` route in `auth.routes.ts`.
+*   Configured Passport `LocalStrategy` with `{ usernameField: 'email' }` to match the frontend form data.
+*   Provided the `fetchAuthStatus` function explicitly as the `queryFn` when calling `queryClient.fetchQuery({ queryKey: ['authStatus'] })` in the `LoginPage` component's `onSuccess` handler for the login mutation. 

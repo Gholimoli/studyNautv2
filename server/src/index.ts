@@ -11,6 +11,7 @@ import session from 'express-session'; // Import express-session
 import connectPgSimple from 'connect-pg-simple'; // Import pg session store
 import { notesRoutes } from './modules/notes/routes/notes.routes';
 import { ocrRoutes } from './modules/ocr/ocr.routes'; // Import OCR routes
+import { folderRoutes } from './modules/folders/folders.routes'; // Import Folder routes
 
 configurePassport(); // Configure Passport strategies
 
@@ -65,6 +66,7 @@ app.use('/api/auth', authRoutes); // Mount auth routes
 app.use('/api/media', mediaRoutes); // Mount media routes
 app.use('/api/notes', notesRoutes);
 app.use('/api/ocr', ocrRoutes); // Mount OCR routes
+app.use('/api/folders', folderRoutes); // Mount Folder routes
 // TODO: Add other module routes (notes, etc.)
 
 // Add global error handler middleware (must be after all routes)

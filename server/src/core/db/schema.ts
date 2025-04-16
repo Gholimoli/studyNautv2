@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, pgEnum, integer, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, timestamp, pgEnum, integer, jsonb, boolean, AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- Enums --- 
@@ -19,6 +19,15 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 50 }).default('USER').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const folders = pgTable('folders', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    parentId: integer('parent_id').references((): AnyPgColumn => folders.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const sources = pgTable('sources', {
@@ -54,9 +63,11 @@ export const notes = pgTable('notes', {
   id: serial('id').primaryKey(),
   sourceId: integer('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }).unique(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  folderId: integer('folder_id').references(() => folders.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 255 }).notNull(),
   markdownContent: text('markdown_content'),
   htmlContent: text('html_content'),
+  languageCode: varchar('language_code', { length: 10 }),
   favorite: boolean('favorite').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -68,6 +79,23 @@ export const notes = pgTable('notes', {
 
 export const usersRelations = relations(users, ({ many }) => ({
 	sources: many(sources),
+    notes: many(notes),
+    folders: many(folders),
+}));
+
+export const foldersRelations = relations(folders, ({ one, many }) => ({
+    user: one(users, {
+        fields: [folders.userId],
+        references: [users.id],
+    }),
+    parent: one(folders, {
+        fields: [folders.parentId],
+        references: [folders.id],
+        relationName: 'folderHierarchy',
+    }),
+    children: many(folders, {
+        relationName: 'folderHierarchy',
+    }),
     notes: many(notes),
 }));
 
@@ -98,5 +126,9 @@ export const notesRelations = relations(notes, ({ one }) => ({
     user: one(users, {
         fields: [notes.userId],
         references: [users.id],
+    }),
+    folder: one(folders, {
+        fields: [notes.folderId],
+        references: [folders.id],
     }),
 }));

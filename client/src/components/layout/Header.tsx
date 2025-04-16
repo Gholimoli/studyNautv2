@@ -1,8 +1,16 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-// import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar" // Commented out until shadcn component is added
-// import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet" // Commented out until shadcn component is added
-import { MenuIcon, PlusIcon, UserCircle } from 'lucide-react'; // Using lucide-react for icons
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+    DropdownMenu, 
+    DropdownMenuContent, 
+    DropdownMenuItem, 
+    DropdownMenuLabel, 
+    DropdownMenuSeparator, 
+    DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { MenuIcon, PlusIcon, UserCircle, LogOut, Settings, User } from 'lucide-react';
+import { useLogoutMutation } from '@/hooks/useAuthMutations';
 
 // Placeholder for Logo component
 const Logo = () => (
@@ -28,42 +36,58 @@ const NavLinks = () => (
     </nav>
 );
 
-// Placeholder for User Profile Menu
-const UserMenu = () => (
-    // <Avatar className="h-8 w-8 cursor-pointer"> // Commented out until shadcn component is added
-    //     <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-    //     <AvatarFallback>CN</AvatarFallback>
-    // </Avatar>
-    <Button variant="ghost" size="icon" className="rounded-full">
-        <UserCircle className="h-6 w-6" />
-        <span className="sr-only">User Menu</span>
-        {/* Add DropdownMenu for actual user actions (Profile, Settings, Logout) */}
-    </Button>
-);
+// User Profile Menu with Logout
+const UserMenu = () => {
+    const logoutMutation = useLogoutMutation();
+
+    const handleLogout = () => {
+        logoutMutation.mutate();
+    };
+    
+    // Placeholder user data for display
+    const user = { displayName: 'User Name', email: 'user@example.com', avatarUrl: undefined };
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8"> 
+                        {/* Use dynamic image and fallback */} 
+                        <AvatarImage src={user?.avatarUrl || undefined} alt={user?.displayName || 'User'} />
+                        <AvatarFallback>{user?.displayName?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
+                    </Avatar>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{user?.displayName || 'User'}</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                            {user?.email || 'No Email'}
+                        </p>
+                    </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                     <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} disabled={logoutMutation.isPending}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>{logoutMutation.isPending ? 'Logging out...' : 'Log out'}</span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+};
 
 // Placeholder for Mobile Sidebar Trigger/Content
 const MobileSidebar = () => (
-    // <Sheet> // Commented out until shadcn component is added
-    //   <SheetTrigger asChild>
-    //     <Button variant="ghost" size="icon" className="md:hidden">
-    //       <MenuIcon className="h-5 w-5" />
-    //       <span className="sr-only">Toggle Menu</span>
-    //     </Button>
-    //   </SheetTrigger>
-    //   <SheetContent side="left" className="w-72 p-4">
-    //     <div className="mb-6">
-    //         <Logo />
-    //     </div>
-    //     <nav className="flex flex-col gap-4 text-base font-medium">
-    //         <a href="/dashboard" className="text-foreground/80 hover:text-foreground transition-colors">Dashboard</a>
-    //         <a href="/notes" className="text-foreground/80 hover:text-foreground transition-colors">Notes</a>
-    //         <a href="/mind-maps" className="text-foreground/80 hover:text-foreground transition-colors">Mind Maps</a>
-    //         <a href="/ai-tutor" className="text-foreground/80 hover:text-foreground transition-colors">AI Tutor</a>
-    //          {/* Mirror main nav links here */}
-    //     </nav>
-    //     {/* Potentially add sidebar content here too */}
-    //   </SheetContent>
-    // </Sheet>
     <Button variant="ghost" size="icon" className="md:hidden">
         <MenuIcon className="h-5 w-5" />
         <span className="sr-only">Toggle Menu</span>

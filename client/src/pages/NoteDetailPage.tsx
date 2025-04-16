@@ -5,6 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ReactMarkdown from 'react-markdown'; // Import the renderer
 import remarkGfm from 'remark-gfm'; // Import the GFM plugin
+import { Badge } from "@/components/ui/badge"; // Added Badge import
+import { Tags } from "lucide-react"; // Added Tags icon import
 
 // Remove the explicit props interface, as we'll use the hook
 // interface NoteDetailPageProps {
@@ -52,6 +54,24 @@ export function NoteDetailPage() {
           <p className="text-sm text-muted-foreground">
             Created: {new Date(note.createdAt).toLocaleDateString()}
           </p>
+
+          {/* Tags Area - Added Here */}
+          {note.tags && note.tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 my-4"> {/* Added margin-y */} 
+              <Tags className="h-4 w-4 text-muted-foreground mr-1" /> 
+              {note.tags.map((tag: { id: number; name: string }) => (
+                <Badge 
+                  key={tag.id} 
+                  variant="default" 
+                  className="text-xs font-medium px-2 py-0 h-5"
+                >
+                  {tag.name}
+                </Badge>
+              ))}
+              {/* No need for "+X more" on detail page, show all */}
+            </div>
+          )}
+
           <div className="mt-6">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {note.markdownContent || 'No content available.'}

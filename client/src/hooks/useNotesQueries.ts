@@ -40,6 +40,7 @@ interface NoteDetail extends Omit<NoteListItem, 'sourceType'> { // Remove source
   markdownContent?: string;
   htmlContent?: string;
   originalTranscript?: string; // If applicable
+  tags?: { id: number; name: string }[]; // Added tags property
   // Add other fields returned by the GET /api/notes/:id endpoint
 }
 

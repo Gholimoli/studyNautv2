@@ -1,126 +1,141 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router';
 import App from './App'; // Main App layout with Header/Sidebar
+import { QueryClient } from '@tanstack/react-query'; // Import QueryClient
+import axios from 'axios'; // Import axios for isAxiosError
 
 // Import Page Components
-// import { LoginPage } from '@/pages/LoginPage'; // Remove old import
-import LoginPage from '@/pages/auth/LoginPage'; // Import the NEW styled LoginPage
+import LoginPage from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
-import { DashboardPage } from '@/pages/DashboardPage'; // Import the new DashboardPage
-import { NoteDetailPage } from '@/pages/NoteDetailPage'; // Import the new component
+import { DashboardPage } from '@/pages/DashboardPage';
+import { NoteDetailPage } from '@/pages/NoteDetailPage';
+import { NotesIndexPage } from '@/pages/NotesIndexPage'; // Import the new page component
 
-// Placeholder Page Components (Will replace or create)
-// function DashboardPage() { return <div>Dashboard Page (Protected)</div>; } // Remove placeholder
-function IndexPage() { return <div>Home/Index Page</div>; }
-function NotesIndexPage() { return <div>Notes List Page</div>; } // Placeholder
-// Remove inline NoteDetailPage placeholder
-// function NoteDetailPage({ params }: { params: { noteId: string }}) { 
-//   return <div>Note Detail Page for ID: {params.noteId}</div>; 
-// } 
+// Import Auth Status hook
+import { useAuthStatus } from '@/hooks/useAuthStatus'; // Adjust path if needed
 
-// --- Root Routes --- 
+// Import queryClient from the new dedicated file
+import { queryClient } from '@/lib/query-client'; // UPDATED IMPORT PATH
 
-// 1. Root for main application layout (uses App with Header/Sidebar)
-const appRootRoute = createRootRoute({
-  component: App, 
-});
+// --- Auth Check Logic --- 
+async function ensureUserIsAuthenticated() {
+  console.log("[ensureUserIsAuthenticated] Starting check..."); // Log start
+  try {
+    // Fetch auth status using the queryClient directly
+    const authData = await queryClient.fetchQuery({
+      queryKey: ['authStatus'],
+      queryFn: async () => {
+        console.log("[ensureUserIsAuthenticated] Fetching /api/auth/status...");
+        try {
+          const { apiClient } = await import('@/lib/api-client');
+          const res = await apiClient.get('/auth/status');
+          console.log("[ensureUserIsAuthenticated] Received status data:", res.data);
+          return res.data;
+        } catch (error: any) { // Catch errors during the API call
+            // Check if it's an Axios error and specifically a 401
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
+                console.warn("[ensureUserIsAuthenticated] API returned 401 during status fetch. Treating as unauthenticated.");
+                return { authenticated: false, user: null }; // Return unauthenticated status
+            } else {
+                // For other errors during fetch, re-throw them to be caught by the outer catch
+                console.error("[ensureUserIsAuthenticated] Non-401 error during status fetch:", error);
+                throw error; 
+            }
+        }
+      },
+      staleTime: 1000 * 10, // Cache for 10 seconds during load check
+      retry: false
+    });
 
-// 2. Root for authentication pages (renders outlet directly, no main layout)
-const authRootRoute = createRootRoute({
-    component: () => (
-        // Simple component that just renders the matched auth route
-        <Outlet />
-    ),
-});
+    console.log("[ensureUserIsAuthenticated] Auth Data from fetchQuery:", authData);
 
-// --- Authentication Routes (Children of authRootRoute) ---
+    if (!authData?.authenticated) {
+      console.warn("[ensureUserIsAuthenticated] User NOT authenticated. Redirecting to /login...");
+      throw redirect({
+        to: '/login',
+      });
+    } else {
+      console.log("[ensureUserIsAuthenticated] User IS authenticated. Proceeding."); // Log success
+    }
+    // User is authenticated, proceed
+  } catch (error) {
+      // Check if it's a redirect error, which is expected
+      if (error instanceof Error && typeof (error as any).redirect === 'object') {
+          console.log("[ensureUserIsAuthenticated] Redirecting...");
+          throw error; // Re-throw the redirect
+      } else {
+          // Log unexpected errors during the check
+          console.error("[ensureUserIsAuthenticated] Unexpected error during auth check:", error);
+          // Optionally, redirect to login even on unexpected errors
+          // console.warn("[ensureUserIsAuthenticated] Unexpected error, redirecting to /login as fallback.");
+          // throw redirect({ to: '/login' });
+          throw error; // Re-throw other errors to potentially be caught by router error handling
+      }
+  }
+}
 
-const loginRoute = createRoute({ 
-  getParentRoute: () => authRootRoute, // Parent is the AUTH root
-  path: '/login',
-  component: LoginPage,
-});
-
-const registerRoute = createRoute({ 
-  getParentRoute: () => authRootRoute, // Parent is the AUTH root
-  path: '/register',
-  component: RegisterPage, // Make sure RegisterPage exists and is styled similarly
-});
-
-// --- Main Application Routes (Children of appRootRoute) ---
-
-const indexRoute = createRoute({ 
-  getParentRoute: () => appRootRoute, // Parent is the APP root
-  path: '/',
-  component: IndexPage, // Or redirect logic
-});
-
-const dashboardRoute = createRoute({ 
-  getParentRoute: () => appRootRoute, // Parent is the APP root
-  path: '/dashboard',
-  component: DashboardPage,
-  // TODO: Add authentication check
-});
-
-const notesIndexRoute = createRoute({
-  getParentRoute: () => appRootRoute, // Parent is the APP root
-  path: '/notes',
-  component: NotesIndexPage,
-  // TODO: Auth check
-});
-
-const noteDetailRoute = createRoute({
-  getParentRoute: () => appRootRoute, // Parent is the APP root
-  path: '/notes/$noteId',
-  component: NoteDetailPage,
-  // TODO: Auth check + Loader
-});
-
-
-// --- Route Trees --- 
-// Note: TanStack Router typically expects ONE root route in the tree.
-// We might need a different approach if multiple top-level roots aren't directly supported.
-// A common pattern is one absolute root, and conditional layouts within child routes or the App component itself.
-
-// Let's try combining under ONE root but using different Outlet contexts if needed, or restructure.
-// For now, let's revert to a single root and see if the issue persists after checking CSS import.
-
-// --- REVERTING TO SINGLE ROOT for simplicity --- 
+// --- Define Routes under a SINGLE Root --- 
 
 const rootRoute = createRootRoute({
-    // We need a component here that can conditionally render the layout
-    // or render Outlet directly based on the route.
-    // For now, let's use App and assume App might handle this later.
-    component: App,
+    // Use App component which likely contains the main layout (Header, Sidebar) and the <Outlet /> for child routes
+    // Try defining component inline as a diagnostic step
+    component: () => <App />,
 });
 
-const loginRouteSingleRoot = createRoute({ 
+// Login route (doesn't use the main App layout typically, but might if App handles conditional layout)
+const loginRoute = createRoute({ 
   getParentRoute: () => rootRoute,
   path: '/login',
   component: LoginPage,
+  // Consider adding logic in App or here to hide Header/Sidebar for /login
 });
 
-// ... other routes defined similarly as children of rootRoute ...
-// Define other routes like index, register, dashboard etc. as before,
-// all children of the single rootRoute
+// Register route
+const registerRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/register',
+  component: RegisterPage,
+  // Consider adding logic in App or here to hide Header/Sidebar for /register
+});
 
-const indexRouteSingleRoot = createRoute({ getParentRoute: () => rootRoute, path: '/', component: IndexPage });
-const registerRouteSingleRoot = createRoute({ getParentRoute: () => rootRoute, path: '/register', component: RegisterPage });
-const dashboardRouteSingleRoot = createRoute({ getParentRoute: () => rootRoute, path: '/dashboard', component: DashboardPage });
-const notesIndexRouteSingleRoot = createRoute({ getParentRoute: () => rootRoute, path: '/notes', component: NotesIndexPage });
-const noteDetailRouteSingleRoot = createRoute({ getParentRoute: () => rootRoute, path: '/notes/$noteId', component: NoteDetailPage });
+// Dashboard route (root path) - Protected
+const dashboardRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/', 
+  component: DashboardPage,
+  beforeLoad: ensureUserIsAuthenticated, // Corrected property name
+}); 
 
-// Combine routes into a single tree
+// Notes list route - Protected
+const notesIndexRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/notes', 
+  component: NotesIndexPage, 
+  beforeLoad: ensureUserIsAuthenticated, // Corrected property name
+});
+
+// Note detail route - Protected
+const noteDetailRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/notes/$noteId', 
+  component: NoteDetailPage, 
+  beforeLoad: ensureUserIsAuthenticated, // Corrected property name
+});
+
+// --- Build Route Tree --- 
+// Add all defined routes as children of the single rootRoute
 const routeTree = rootRoute.addChildren([
-  indexRouteSingleRoot,
-  loginRouteSingleRoot, 
-  registerRouteSingleRoot,
-  dashboardRouteSingleRoot,
-  notesIndexRouteSingleRoot,
-  noteDetailRouteSingleRoot,
+  dashboardRoute, // Path: '/'
+  loginRoute,     // Path: '/login'
+  registerRoute,  // Path: '/register'
+  notesIndexRoute,// Path: '/notes'
+  noteDetailRoute // Path: '/notes/$noteId'
 ]);
 
 // Create the router instance
-export const router = createRouter({ routeTree });
+export const router = createRouter({ 
+  routeTree, 
+  context: { queryClient }, // Provide queryClient to context if needed elsewhere
+});
 
 // Register the router instance for type safety
 declare module '@tanstack/react-router' {
@@ -130,8 +145,7 @@ declare module '@tanstack/react-router' {
 } 
 
 /* 
-NOTE: The initial thought of separate root routes might be complex with TanStack Router's typical setup.
-The most common issue for missing styles is the CSS import. Let's ensure that's correct first.
-If client/src/main.tsx imports client/src/index.css, the styles *should* apply globally.
-The rendering issue might be more subtle if the CSS is indeed loaded.
+Simplified structure with a single root route. 
+The App component is responsible for rendering the main layout and the Outlet for child routes.
+Authentication routes (/login, /register) are also children but might need conditional layout handling within App.tsx.
 */ 

@@ -1,174 +1,76 @@
-- [x] Initialize shared `package.json` and install core dependencies
-- [x] Set up basic Express server structure
-- [x] Configure environment variables (`.env.example`)
-- [x] Implement basic health check endpoint
-- [x] Set up Drizzle ORM configuration
-- [x] Define initial database schema (users)
-- [x] Generate initial database migration
-- [x] Implement basic user registration endpoint (without password hashing yet)
+# Studynaut Project TODO List
 
-## Phase 2: Authentication
+## Core Setup & Authentication (Phase 1)
 
-- [x] Implement password hashing (bcrypt)
-- [x] Set up Passport.js local strategy
-- [x] Implement session management (e.g., connect-pg-simple)
-- [x] Implement login endpoint
-- [x] Implement logout endpoint
-- [x] Implement auth status endpoint
-- [x] Protect relevant API routes
+- [x] **Monorepo Setup:** Initialize `pnpm` workspace with `client` and `server` packages.
+- [x] **Server Setup:** Basic Express server with TypeScript, routing, and basic middleware.
+- [x] **Client Setup:** Vite + React + TypeScript setup.
+- [x] **Database Setup:** Configure PostgreSQL and Drizzle ORM, define initial schemas (User, Source, Note, etc.).
+- [x] **UI Foundation:** Integrate `shadcn/ui` and `Tailwind CSS`.
+- [x] **Basic Layout:** Create `Layout`, `Header`, `Footer` components.
+- [x] **Routing:** Implement basic routing with TanStack Router.
+- [x] **User Registration:** Implement backend endpoint and frontend form.
+- [x] **User Login:** Implement backend endpoint and frontend form.
+- [x] **Password Hashing:** Use `bcryptjs` on the server.
+- [x] **Session Management:** Implement server-side sessions (`express-session`).
+- [x] **User Logout:** Implement backend endpoint and frontend trigger (e.g., in Header menu).
+- [x] **Auth Status Check:** Create endpoint (`/api/auth/status`) and frontend hook (`useAuthStatus`).
+- [x] **Route Protection:** Implement `beforeLoad` checks on protected routes using auth status.
+- [x] **UI Feedback:** Add `Toaster` for auth notifications.
+- [x] **Resolve Auth Bugs:** Fix circular dependency with `queryClient` and router.
 
-## Phase 3: Core Frontend & Basic UI
+## Content Submission & Processing (Phase 2)
 
-- [x] Set up basic React structure with Vite
-- [x] Set up Tailwind CSS & shadcn/ui
-- [x] Implement basic routing (e.g., TanStack Router)
-- [ ] Create basic layout components (Header, Footer, Sidebar)
+- [ ] **Source Schema:** Finalize `sources` table schema in Drizzle.
+- [ ] **Media Endpoints (Backend):**
+    - [ ] `/api/media/upload` (for files: PDF, Audio, Image)
+    - [ ] `/api/media/youtube` (for YouTube URLs)
+    - [ ] `/api/media/text` (for raw text input)
+- [ ] **File Storage:** Implement service to upload source files (e.g., to local storage for dev, cloud storage for prod).
+- [ ] **Job Queue Setup:** Configure BullMQ with Redis for background processing.
+- [ ] **Worker Process:** Set up the initial worker process (`server/src/worker.ts`).
+- [ ] **Content Extraction Jobs:**
+    - [ ] YouTube Transcript Extraction Job (`youtube-transcript`).
+    - [ ] PDF Text Extraction Job (e.g., using `pdf-parse`).
+    - [ ] Audio Transcription Job (ElevenLabs integration, fallback).
+    - [ ] Image OCR Job (Mistral integration, fallback).
+    - [ ] Raw Text Processing (passthrough).
+- [ ] **Frontend Submission Forms/UI:** Create UI components for each submission type (YouTube URL, File Upload, Text Input).
+- [ ] **API Integration (Frontend):** Connect frontend forms to backend media endpoints using TanStack Query mutations.
+- [ ] **Processing Status Tracking (Backend):** Update `sources` table with `processingStatus` and `processingStage` during job execution.
+- [ ] **Processing Status Display (Frontend):** Create UI to show users the status of their submitted sources (e.g., on Dashboard or a dedicated Sources page).
 
-## Phase 4: Frontend Design System & Core UI
+## AI Analysis & Note Generation (Phase 3)
 
-- [x] **Define Design System:** Analyze `ui-guidelines.mdc` and establish the core theme (colors, typography, spacing, etc.).
-- [x] **Create `docs/theme.md`:** Document the finalized design system in this new file as the single source of truth.
-- [x] **Update `docs/README.md`:** Reference `docs/theme.md` as the primary UI documentation.
-- [x] **Implement Base Styles:** Configure Tailwind theme based on `docs/theme.md`.
-- [x] **Build Core Layout Components:** Implement `Header`, `Footer` (if needed), `Sidebar` components adhering to the theme and responsiveness.
-- [ ] **Style Base shadcn/ui Components:** Apply theme customizations to core `shadcn/ui` components (`Button`, `Card`, `Input`, etc.). (Partially done via CSS vars, will refine as needed)
-- [x] **Integrate Framer Motion:** Set up basic page transition animations and subtle interactive animations.
+- [ ] **AI Service (`AiService`):** Implement core service to manage AI providers and prompts.
+- [ ] **AI Provider Integration:** Implement Gemini and OpenAI providers.
+- [ ] **Prompts:** Develop and refine prompts for lesson structure generation.
+- [ ] **`PROCESS_SOURCE_TEXT` Job:** Implement job to take extracted text, call `AiService` for structure, and save intermediate results.
+- [ ] **Visual Placeholder Processing (`PROCESS_VISUAL_PLACEHOLDERS` Job):** Implement job to parse visual opportunities and enqueue individual visual jobs.
+- [ ] **Visual Generation (`GENERATE_VISUAL` Job):** Implement job using SerpAPI (or other configured visual provider).
+- [ ] **Note Assembly (`ASSEMBLE_NOTE` Job):** Implement job to combine structured content and generated visuals into final note format (Markdown/HTML).
+- [ ] **Note Schema:** Finalize `notes` table schema.
+- [ ] **Save Final Note:** Store the assembled note in the database.
 
-## Phase 5: AI Integration (Text Processing)
+## Note Display & Management (Phase 4)
 
-- [x] Define AI provider interface (`IAiProvider`)
-- [x] Implement Gemini provider (`gemini.provider.ts`)
-- [x] Implement OpenAI provider (`openai.provider.ts`)
-- [x] Implement `AiService` to manage providers and fallbacks
-- [x] Define `GENERATE_LESSON_STRUCTURE` prompt
-- [x] Integrate `AiService` into `PROCESS_SOURCE_TEXT` job
-- [ ] Create frontend components to display notes list
-- [ ] Create frontend component to display detailed note view
+- [ ] **Notes List Page (`/notes`):** Display all user notes.
+- [ ] **Note Detail Page (`/notes/:noteId`):** Display full note content (rendered Markdown/HTML).
+- [ ] **API Endpoints:** Create backend endpoints (`/api/notes`, `/api/notes/:id`) to fetch notes.
+- [ ] **Frontend Data Fetching:** Use TanStack Query `useQuery` hooks to fetch note data.
+- [ ] **Note Actions:** Implement favorite toggle and delete functionality.
 
-## Phase 6: Visual Processing
+## Study Tools (Phase 5)
 
-- [x] Define `visuals` table schema
-- [x] Implement `PROCESS_VISUAL_PLACEHOLDERS` job
-- [x] Implement `GENERATE_VISUAL` job skeleton
-- [x] Implement SerpAPI image search utility (`image-search.ts`)
-- [x] Integrate image search into `GENERATE_VISUAL` job
-- [x] Implement logic to check for completion and enqueue `ASSEMBLE_NOTE` job
+- [ ] **Flashcard Generation Job/Endpoint.**
+- [ ] **Quiz Generation Job/Endpoint.**
+- [ ] **Flashcard Review UI.**
+- [ ] **Quiz Taking UI.**
 
-## Phase 7: Note Assembly & Display
+## Refinement & Polish (Phase 6)
 
-- [x] Define `notes` table schema
-- [x] Implement `ASSEMBLE_NOTE` job
-- [x] Implement API endpoint to get notes list (`/api/notes`)
-- [x] Implement API endpoint to get single note details (`/api/notes/:id`)
-- [ ] Create frontend components to display notes list
-- [ ] Create frontend component to display detailed note view
-
-## Phase 7.1: Build Core Frontend Pages
-
-- [ ] **Authentication Pages:** Build Sign In and Sign Up pages based on screenshots and theme.
-- [ ] **Dashboard Page:** Create the main dashboard UI inspired by screenshots, including content creation options and recent notes.
-- [ ] **Notes List Page:** Implement the "All Notes" view with search, filtering, and note cards.
-- [ ] **Note Detail Page:** Build the note viewing interface with structured content, visuals, and actions.
-- [ ] **Content Upload/Processing Pages:** Design UI for uploading different source types (Text, Audio, YouTube, Image/PDF) and displaying processing status.
-
-## Phase 8: Study Tools
-
-- [ ] Define schema for flashcards and quizzes
-- [ ] Implement AI prompts for generating flashcards
-- [ ] Implement AI prompts for generating quizzes
-- [ ] Create API endpoints for retrieving study tools
-- [ ] Build frontend components for flashcard review
-- [ ] Build frontend components for quiz taking
-
-## Phase 9: Audio Upload & Transcription Pipeline
-
-- [x] Implement `/api/media/upload` endpoint for audio files (backend)
-- [x] Implement BullMQ job for audio transcription (`transcribeAudio.job.ts`)
-- [x] Integrate ElevenLabs API for transcription (with chunking, retries, and OpenAI fallback)
-- [x] Update DB and job status throughout pipeline
-- [x] Create minimal React UI for audio upload and status (frontend)
-- [x] Display upload progress and show resulting `sourceId` and processing status
-- [x] Add error handling and user feedback in UI
-- [x] End-to-end test: upload audio, verify DB, and check transcription result
-- [x] Implement `/api/processing/status/:sourceId` endpoint for checking processing status
-- [x] Fix job sequencing in audio processing pipeline
-- [x] Add validation for audio file uploads
-- [x] Improve error handling in audio processing pipeline
-
-## Refactor: File Size & Modularity
-- [x] Enforce <300 LOC per file (except orchestrator jobs)
-- [x] Extract ElevenLabs chunking/temp helpers to elevenlabs.utils.ts
-- [x] Refactor elevenlabs.processor.ts for orchestration-only logic
-- [x] Standardize config/env usage and metadata access in transcribeAudio.job.ts
-- [x] Confirm all server files are under 300 lines (except orchestrators)
-- [x] Add checkpoint commit after successful pipeline test
-
-## Phase 10: UI Testing and Optimization
-
-- [x] Test audio upload UI with various file sizes and formats
-- [x] Test backend pipeline with ElevenLabs and OpenAI failover
-- [x] Document issues and edge cases in audio processing pipeline
-- [x] Basic Audio Pipeline Test UI: Added AudioUploadForm component for testing
-- [x] Optimize audio chunking for better processing speed
-- [x] Add support for additional audio formats
-- [x] Implement progress tracking for individual audio chunks
-- [x] Improve visual feedback during long-running transcription jobs
-
-## Phase 11: Documentation and Deployment
-
-- [x] Update architecture documentation with audio processing details
-- [ ] Create deployment guide for production environment
-- [ ] Set up CI/CD pipeline for automated testing and deployment
-- [ ] Create user documentation for audio upload and processing
-- [ ] Implement logging and monitoring for production environment
-
-## Phase 12: Additional Features
-
-- [ ] Implement sharing functionality for notes
-- [ ] Add collaboration features for shared notes
-- [ ] Support for more input sources (e.g., website URLs, RSS feeds)
-- [ ] Implement advanced search functionality (full-text search)
-- [ ] Add support for organizing notes in folders/collections
-
-## Phase 13: YouTube Pipeline
-- [x] Implement YouTube transcript extraction utility (youtube-transcript or similar) — must extract timestamps and full transcript
-- [x] Add /api/media/youtube endpoint to accept YouTube URLs and enqueue processing
-- [x] Update job pipeline to handle YouTube sources (extract transcript with timestamps, save source URL and transcript for user, enqueue AI analysis, etc.)
-- [x] Add error handling for unavailable/unsupported videos
-- [x] Add frontend UI for submitting YouTube URLs
-- [x] Show progress/status for YouTube processing in UI
-- [x] Display resulting notes in dashboard
-- [x] Update docs with detailed YouTube pipeline notes (flow, data model, error handling, etc.)
-
-## Phase 14: Mistral OCR Pipeline (Images/PDFs)
-- [x] Integrate Mistral OCR API (or local OCR) for image/PDF text extraction
-- [x] Add /api/media/upload support for images and PDFs
-- [x] Update job pipeline to handle OCR sources (extract text, enqueue AI analysis, etc.)
-- [x] Add error handling for unsupported/failed OCR
-- [x] Add frontend UI for uploading images and PDFs
-- [x] Show progress/status for OCR processing in UI
-- [x] Display resulting notes in dashboard
-- [x] Implementation is robust, matches Mistral's documentation, and includes fallback logic.
-
-## Phase 15: UI/UX Refinement & Testing
-
-- [ ] **Refine Animations:** Ensure Framer Motion animations are smooth, purposeful, and respect reduced motion preferences.
-- [ ] **Responsiveness Testing:** Thoroughly test all pages across different screen sizes (mobile, tablet, desktop).
-- [ ] **Accessibility Audit:** Perform checks for keyboard navigation, screen reader compatibility, and color contrast.
-- [ ] **Component Polish:** Review and refine the styling and interaction of all custom and shadcn/ui components.
-- [ ] **Performance Check:** Analyze frontend performance and optimize where necessary.
-
-### Core Processing Pipeline
-
-*   `[-]` Implement YouTube transcript fetching.
-*   `[-]` Implement PDF text extraction.
-*   `[x]` Implement Audio transcription pipeline (ElevenLabs + Fallback).
-    *   `[x]` Handle Supabase upload.
-    *   `[x]` Queue transcription job.
-    *   `[x]` Job downloads file from Supabase.
-    *   `[x]` Job calls transcription service (ElevenLabs) with local file.
-    *   `[x]` Job handles chunking for large files.
-    *   `[-]` Implement OpenAI fallback for failed chunks.
-    *   `[x]` Job updates DB with transcript/status.
-    *   `[x]` Job enqueues next step (`PROCESS_SOURCE_TEXT`).
-*   `[-]` Implement Image OCR.
+- [ ] **UI/UX Polish:** Address any remaining UI inconsistencies or rough edges.
+- [ ] **Error Handling:** Improve error reporting and handling throughout the app.
+- [ ] **Performance Optimization:** Identify and address any performance bottlenecks.
+- [ ] **Testing:** Add more comprehensive tests (unit, integration, e2e).
+- [ ] **Dark Mode.**

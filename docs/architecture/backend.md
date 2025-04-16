@@ -8,4 +8,16 @@
 
 *   **`StorageService` (`server/src/core/services/storage.service.ts`)**: Handles interactions with Supabase Storage. Provides methods for uploading (`uploadFile`), generating signed URLs (`getSignedUrl`), deleting (`deleteFile`), and downloading (`downloadFile`) files from the designated bucket (e.g., `originalaudio`).
 
-*   **`AiService` (`server/src/modules/ai/ai.service.ts`)**: Central orchestrator for AI tasks (lesson structure, quiz, flashcards). Manages primary/fallback/visual AI providers based on configuration. 
+*   **`AiService` (`server/src/modules/ai/ai.service.ts`)**: Central orchestrator for AI tasks (lesson structure, quiz, flashcards). Manages primary/fallback/visual AI providers based on configuration.
+
+### Authentication & Authorization
+
+*   **Login/Register:** Uses standard email/password or username/password. Passwords are hashed using `bcryptjs`.
+*   **Session Management:** Uses `express-session` with a compatible store (e.g., `connect-redis` or database store) for persistent sessions via cookies.
+*   **Auth Endpoints:** Dedicated routes in `server/src/routes/auth.routes.ts` handle registration, login, logout, and status checks.
+
+### Error Handling
+
+*   Uses a centralized error handling middleware (`server/src/middleware/error.middleware.ts`).
+*   Custom `ApiError` class for consistent HTTP error responses.
+*   Zod used for input validation in route handlers. 
