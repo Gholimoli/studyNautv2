@@ -12,9 +12,10 @@ Welcome to the comprehensive documentation for the Studynaut application. This d
     *   **[Database Architecture](database.md)**
     *   **[Job Pipeline Architecture](job-pipeline.md)**
 *   **[API Endpoints](api-endpoints.md)** - Detailed API specification.
-*   **[Setup Guide](setup.md)** - Local development environment setup.
-*   **[UI Guidelines](ui-guidelines.md)** - UI design system and guidelines.
-*   **[AI Prompts Guide](ai-prompts.md)** - AI integration strategy and prompt design.
+*   **[Setup Guide](mdc:setup.md)** - Guide for setting up local development environment
+*   **[UI Guidelines](mdc:ui-guidelines.mdc)** - UI/UX guidelines for consistent design
+*   **[Theme Definition](mdc:theme.md)** - **(Primary UI Reference)** Detailed theme configuration (colors, typography, spacing) based on UI Guidelines.
+*   **[AI Prompts Guide](mdc:ai-prompts.md)** - Documentation of AI integration strategy and prompt design
 *   **[Troubleshooting Guide](troubleshooting.md)** - Solutions for common issues.
 *   **[Lessons Learned](lessons-learned.md)** - Key insights and challenges.
 *   **[Changelog](CHANGELOG.md)** - Record of significant changes.

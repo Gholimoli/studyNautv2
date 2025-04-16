@@ -1,9 +1,23 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
+// Remove PostCSS imports - we'll rely on the external file
+// import tailwindcss from 'tailwindcss';
+// import autoprefixer from 'autoprefixer';
 
 export default defineConfig({
   plugins: [react()],
+  // Remove inline CSS config block
+  /*
+  css: { 
+    postcss: { 
+      plugins: [
+        tailwindcss, 
+        autoprefixer, 
+      ],
+    },
+  },
+  */
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

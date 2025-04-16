@@ -24,6 +24,16 @@
 - [x] Implement basic routing (e.g., TanStack Router)
 - [ ] Create basic layout components (Header, Footer, Sidebar)
 
+## Phase 4: Frontend Design System & Core UI
+
+- [x] **Define Design System:** Analyze `ui-guidelines.mdc` and establish the core theme (colors, typography, spacing, etc.).
+- [x] **Create `docs/theme.md`:** Document the finalized design system in this new file as the single source of truth.
+- [x] **Update `docs/README.md`:** Reference `docs/theme.md` as the primary UI documentation.
+- [x] **Implement Base Styles:** Configure Tailwind theme based on `docs/theme.md`.
+- [x] **Build Core Layout Components:** Implement `Header`, `Footer` (if needed), `Sidebar` components adhering to the theme and responsiveness.
+- [ ] **Style Base shadcn/ui Components:** Apply theme customizations to core `shadcn/ui` components (`Button`, `Card`, `Input`, etc.). (Partially done via CSS vars, will refine as needed)
+- [x] **Integrate Framer Motion:** Set up basic page transition animations and subtle interactive animations.
+
 ## Phase 5: AI Integration (Text Processing)
 
 - [x] Define AI provider interface (`IAiProvider`)
@@ -32,6 +42,8 @@
 - [x] Implement `AiService` to manage providers and fallbacks
 - [x] Define `GENERATE_LESSON_STRUCTURE` prompt
 - [x] Integrate `AiService` into `PROCESS_SOURCE_TEXT` job
+- [ ] Create frontend components to display notes list
+- [ ] Create frontend component to display detailed note view
 
 ## Phase 6: Visual Processing
 
@@ -51,6 +63,14 @@
 - [ ] Create frontend components to display notes list
 - [ ] Create frontend component to display detailed note view
 
+## Phase 7.1: Build Core Frontend Pages
+
+- [ ] **Authentication Pages:** Build Sign In and Sign Up pages based on screenshots and theme.
+- [ ] **Dashboard Page:** Create the main dashboard UI inspired by screenshots, including content creation options and recent notes.
+- [ ] **Notes List Page:** Implement the "All Notes" view with search, filtering, and note cards.
+- [ ] **Note Detail Page:** Build the note viewing interface with structured content, visuals, and actions.
+- [ ] **Content Upload/Processing Pages:** Design UI for uploading different source types (Text, Audio, YouTube, Image/PDF) and displaying processing status.
+
 ## Phase 8: Study Tools
 
 - [ ] Define schema for flashcards and quizzes
@@ -59,8 +79,6 @@
 - [ ] Create API endpoints for retrieving study tools
 - [ ] Build frontend components for flashcard review
 - [ ] Build frontend components for quiz taking
-
----
 
 ## Phase 9: Audio Upload & Transcription Pipeline
 
@@ -84,8 +102,6 @@
 - [x] Standardize config/env usage and metadata access in transcribeAudio.job.ts
 - [x] Confirm all server files are under 300 lines (except orchestrators)
 - [x] Add checkpoint commit after successful pipeline test
-
----
 
 ## Phase 10: UI Testing and Optimization
 
@@ -133,6 +149,14 @@
 - [x] Show progress/status for OCR processing in UI
 - [x] Display resulting notes in dashboard
 - [x] Implementation is robust, matches Mistral's documentation, and includes fallback logic.
+
+## Phase 15: UI/UX Refinement & Testing
+
+- [ ] **Refine Animations:** Ensure Framer Motion animations are smooth, purposeful, and respect reduced motion preferences.
+- [ ] **Responsiveness Testing:** Thoroughly test all pages across different screen sizes (mobile, tablet, desktop).
+- [ ] **Accessibility Audit:** Perform checks for keyboard navigation, screen reader compatibility, and color contrast.
+- [ ] **Component Polish:** Review and refine the styling and interaction of all custom and shadcn/ui components.
+- [ ] **Performance Check:** Analyze frontend performance and optimize where necessary.
 
 ### Core Processing Pipeline
 

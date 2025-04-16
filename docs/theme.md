@@ -1,0 +1,187 @@
+# Studynaut Design System & Theme
+
+**Version:** 1.0
+**Date:** 2025-07-27
+
+This document serves as the definitive guide for the Studynaut application's visual design system and theme implementation. It consolidates the principles outlined in `ui-guidelines.mdc` into actionable theme configurations.
+
+## 1. Core Philosophy
+
+- **Clarity & Simplicity:** Prioritize ease of understanding and use.
+- **Consistency:** Ensure uniform application of styles across the platform.
+- **Accessibility:** Adhere to WCAG AA standards for colors, typography, and interaction.
+- **Modern & Engaging:** Provide a visually appealing and performant user experience.
+
+## 2. Color System (OKLCH & Tailwind Configuration)
+
+The color palette utilizes the OKLCH format for improved perceptual uniformity and accessibility.
+
+```typescript
+// tailwind.config.js (or equivalent theme setup)
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        border: "oklch(var(--border))", // #E5E7EB -> oklch(0.92 0.01 255)
+        input: "oklch(var(--input))", // #D1D5DB -> oklch(0.86 0.01 255)
+        ring: "oklch(var(--ring))", // #854BDD with 50% alpha -> oklch(0.6 0.18 285 / 0.5)
+
+        background: "oklch(var(--background))", // #FFFFFF -> oklch(1 0 0)
+        foreground: "oklch(var(--foreground))", // #111827 -> oklch(0.22 0.02 260)
+
+        primary: {
+          DEFAULT: "oklch(var(--primary))", // #854BDD -> oklch(0.6 0.18 285)
+          foreground: "oklch(var(--primary-foreground))", // #FFFFFF -> oklch(1 0 0)
+        },
+        secondary: {
+          DEFAULT: "oklch(var(--secondary))", // #6B6F7D -> oklch(0.68 0.02 265)
+          foreground: "oklch(var(--secondary-foreground))", // #FFFFFF -> oklch(1 0 0)
+        },
+        destructive: {
+          DEFAULT: "oklch(var(--destructive))", // #EF4444 -> oklch(0.65 0.2 25)
+          foreground: "oklch(var(--destructive-foreground))", // #FFFFFF -> oklch(1 0 0) // Adjusted for contrast if needed
+        },
+        muted: {
+          DEFAULT: "oklch(var(--muted))", // #F7F8FA -> oklch(0.97 0.01 255)
+          foreground: "oklch(var(--muted-foreground))", // #6B7280 -> oklch(0.68 0.02 265)
+        },
+        accent: {
+          DEFAULT: "oklch(var(--accent))", // #F59E0B -> oklch(0.75 0.15 85)
+          foreground: "oklch(var(--accent-foreground))", // #111827 -> oklch(0.22 0.02 260) // Ensure contrast
+        },
+        popover: {
+          DEFAULT: "oklch(var(--popover))", // #FFFFFF -> oklch(1 0 0)
+          foreground: "oklch(var(--popover-foreground))", // #111827 -> oklch(0.22 0.02 260)
+        },
+        card: {
+          DEFAULT: "oklch(var(--card))", // #FFFFFF -> oklch(1 0 0)
+          foreground: "oklch(var(--card-foreground))", // #111827 -> oklch(0.22 0.02 260)
+        },
+        success: { // Added from guidelines
+          DEFAULT: "oklch(0.72 0.15 160)", // #10B981
+          foreground: "oklch(1 0 0)", // #FFFFFF
+        },
+        info: { // Added from guidelines
+           DEFAULT: "oklch(0.65 0.18 240)", // #3B82F6
+           foreground: "oklch(1 0 0)", // #FFFFFF
+        },
+      },
+      // ... other theme settings
+    },
+  },
+  // ... plugins
+};
+```
+
+*   **CSS Variables:** Define corresponding CSS variables (e.g., in `src/index.css`) for light/dark modes.
+*   **60/30/10 Rule:**
+    *   60% Neutral: `background`, `card`, `muted`
+    *   30% Complementary: `foreground`, `muted-foreground`, `border`
+    *   10% Accent: `primary`, `accent` (Use sparingly for key actions/highlights)
+
+## 3. Typography System
+
+*   **Font Family:**
+    *   Primary: `Inter`, `sans-serif`
+    *   Monospace: `Consolas`, `Monaco`, `monospace`
+*   **Font Sizes (Tailwind Classes):**
+    *   `text-4xl` (2.25rem / 36px) - Display Headings
+    *   `text-3xl` (1.875rem / 30px) - H1 / Page Titles
+    *   `text-2xl` (1.5rem / 24px) - H2 / Section Titles
+    *   `text-xl` (1.25rem / 20px) - H3 / Sub-section Titles
+    *   `text-base` (1rem / 16px) - Body / Default
+    *   `text-sm` (0.875rem / 14px) - Small / Secondary Text
+    *   `text-xs` (0.75rem / 12px) - Extra Small / Fine Print
+*   **Font Weights:**
+    *   `font-normal` (400) - Body
+    *   `font-medium` (500) - Emphasis
+    *   `font-semibold` (600) - Headings, Key Elements
+    *   `font-bold` (700) - Strong Emphasis
+*   **Line Heights (Tailwind Classes):**
+    *   `leading-tight` (1.2) - Headings
+    *   `leading-normal` (1.5) - Body Text
+    *   `leading-relaxed` (1.75) - Large Text Blocks
+
+## 4. Spacing (8pt Grid System)
+
+Use Tailwind's default spacing scale, which aligns well with the 4/8pt system. Prioritize values divisible by 4, especially 8.
+
+*   `p-1`, `m-1` (4px)
+*   `p-2`, `m-2` (8px)
+*   `p-3`, `m-3` (12px)
+*   `p-4`, `m-4` (16px)
+*   `p-5`, `m-5` (20px)
+*   `p-6`, `m-6` (24px)
+*   `p-8`, `m-8` (32px)
+*   `p-10`, `m-10` (40px)
+*   `p-12`, `m-12` (48px)
+*   `gap-x`, `space-x` etc. follow the same scale.
+
+## 5. Border Radius
+
+```typescript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    borderRadius: {
+      'none': '0',
+      'sm': '0.125rem', // 2px
+      DEFAULT: '0.375rem', // 6px (Tailwind's default md) - Use for most elements
+      'md': '0.375rem', // 6px
+      'lg': '0.5rem', // 8px - Cards, Modals
+      'xl': '0.75rem', // 12px (Optional larger radius)
+      'full': '9999px',
+    },
+    // ...
+  },
+};
+```
+
+*   **Standard:** `rounded-md` (6px) for buttons, inputs.
+*   **Large:** `rounded-lg` (8px) for cards, modals, containers.
+
+## 6. Shadows / Elevation
+
+Utilize Tailwind's default shadow utilities (`shadow-sm`, `shadow`, `shadow-lg`, `shadow-xl`). Use sparingly to create depth.
+
+## 7. Animation (Framer Motion)
+
+*   **Purpose:** Enhance UX, provide feedback, guide focus. Avoid distracting animations.
+*   **Defaults:**
+    *   Duration: `150ms` (hover), `200-300ms` (standard transitions), `300-500ms` (emphasis)
+    *   Easing: `ease-in-out`
+*   **Implementation:** Use `framer-motion` library.
+*   **Accessibility:** Respect `prefers-reduced-motion`. Implement logic to disable or reduce animations based on user preference. Example:
+    ```jsx
+    import { useReducedMotion } from "framer-motion";
+
+    function MyComponent() {
+      const shouldReduceMotion = useReducedMotion();
+      // ... animation variants conditionally adjust duration/effect
+    }
+    ```
+
+## 8. Breakpoints (Tailwind Defaults)
+
+*   `sm`: 640px
+*   `md`: 768px
+*   `lg`: 1024px
+*   `xl`: 1280px
+*   `2xl`: 1536px
+
+## 9. Component Styling (shadcn/ui & CVA)
+
+*   Leverage `shadcn/ui` components as the base.
+*   Apply theme customizations via Tailwind configuration and global CSS overrides where necessary.
+*   Use `Class Variance Authority (CVA)` for creating custom component variants consistent with the design system.
+*   Follow the "New York" style conventions where applicable.
+
+## 10. Dark Mode
+
+*   Configure Tailwind's `darkMode: 'class'` strategy.
+*   Define corresponding dark mode CSS variables for colors in `src/index.css`.
+*   Ensure sufficient contrast ratios in both light and dark themes.
+
+---
+
+This theme provides the foundation for building a consistent, accessible, and visually appealing UI for Studynaut. Refer back to this document when implementing new components or layouts. 
