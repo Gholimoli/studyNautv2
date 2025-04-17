@@ -46,7 +46,9 @@ Studynaut is built using a modern web stack, separating concerns into distinct p
 
 ## Detailed Architecture Documents
 
-*   **[Backend Architecture](backend.md)**
-*   **[Frontend Architecture](frontend.md)**
-*   **[Database Architecture](database.md)**
-*   **[Job Pipeline Architecture](job-pipeline.md)** 
+For more detailed information on specific parts of the system, see:
+
+*   **[Backend Architecture](./backend.md)**
+*   **[Frontend Architecture](./frontend.md)**
+*   **[Database Architecture](./database.md)**
+*   **[Job Pipeline Architecture](./job_pipeline.md)** 
