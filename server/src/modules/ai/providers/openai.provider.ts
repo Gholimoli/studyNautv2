@@ -1,4 +1,4 @@
-import { IAiProvider, AiRequestOptions, AiResponse } from '../types/ai.types';
+import { IAiProvider, AiRequestOptions, AiResponse } from '@/modules/ai/types/ai.types';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '../../../.env' }); // Adjust path relative to dist

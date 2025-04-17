@@ -10,11 +10,11 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": "./src",              // For resolving paths below
+    "baseUrl": "./",              // CHANGE baseUrl to ./ (project root relative to tsconfig.json)
     "paths": { 
-      "@/*": ["*"],
-      "@server/*": ["*"],
-      "@shared/*": ["../../shared/src/*"] // Path relative to baseUrl
+      "@/*": ["src/*"], // CHANGE path to be relative to new baseUrl
+      "@server/*": ["src/*"],
+      "@shared/*": ["../shared/src/*"] // Path relative to tsconfig file
     }
   },
   "include": ["src/**/*"],

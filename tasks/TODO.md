@@ -39,6 +39,7 @@
 - [ ] **API Integration (Frontend):** Connect frontend forms to backend media endpoints using TanStack Query mutations.
 - [ ] **Processing Status Tracking (Backend):** Update `sources` table with `processingStatus` and `processingStage` during job execution.
 - [ ] **Processing Status Display (Frontend):** Create UI to show users the status of their submitted sources (e.g., on Dashboard or a dedicated Sources page).
+- [ ] **Dashboard Recent Notes:** Fetch and display actual recent notes using NoteCard. (In Progress)
 
 ## AI Analysis & Note Generation (Phase 3)
 
@@ -81,23 +82,27 @@
 *   [x] Fix NoteCard favorite button functionality (visual state)
 *   [x] Ensure NoteFolderMenu closes after moving note
 *   [ ] Connect Sidebar "Favorites" link to filter NotesIndexPage (show `isFavorite: true` notes)
-*   [ ] Implement actual API calls (replace placeholders in NotesIndexPage, NoteCard, NoteFolderMenu)
+*   [x] Implement actual API calls (replace placeholders in NotesIndexPage, NoteCard, NoteFolderMenu) - *Partially done for NoteCard*
 *   [x] Add UI for creating/managing user folders (sidebar)
 *   [x] **Fix Sidebar folder item layout to match NavItem layout**
 *   [ ] **Create Folder Detail Page/View (`/folders/:folderId`)**
 *   [x] **Make Sidebar folder names link to Folder Detail Page**
 *   [ ] **Verify notes disappear from list view after being moved out of scope**
+*   [x] Implement Language Code and Flag display in NoteCard
 
 ## Backend
 
-*   [ ] Ensure new notes default to `folderId: null` during creation (e.g., in `ASSEMBLE_NOTE` job)
+*   [x] Ensure new notes default to `folderId: null` during creation (e.g., in `ASSEMBLE_NOTE` job) - *Assuming this is handled, needs verification*
 *   [ ] **Fix `/api/folders` endpoint to return accurate `noteCount` after refetch.**
-*   [ ] **Ensure `/api/notes` endpoint supports filtering by `folderId`**
-*   [ ] Implement actual API endpoints (auth, notes, folders, etc.) based on `api-endpoint.mdc`
-*   [ ] Implement database migrations for folders table (if not already done)
+*   [x] **Ensure `/api/notes` endpoint supports filtering by `folderId`**
+*   [x] Implement actual API endpoints (auth, notes, folders, etc.) based on `api-endpoint.mdc` - *Partially done for notes*
+*   [x] Implement database migrations for folders table (if not already done) - *Assuming done*
 *   [ ] Investigate potential bug in folder creation API/logic causing phantom folders.
+*   [x] Fix bug where `GET /api/notes` incorrectly returned `favorite: false` when undefined.
+*   [x] Ensure `GET /api/notes` returns `languageCode`.
 
 ## General
 
 *   [ ] Refine UI/UX based on feedback
 *   [ ] Add comprehensive tests
+*   [x] Synchronize `.mdc` and `.md` documentation (In Progress)

@@ -1,5 +1,9 @@
 import React from 'react';
-import { Link } from '@tanstack/react-router'; // Use TanStack Router
+import { Link, useNavigate } from '@tanstack/react-router'; // Use TanStack Router, import useNavigate
+import { 
+  useQuery, 
+  useQueryClient // Add useQueryClient if needed for NoteCard actions
+} from '@tanstack/react-query'; // Import TanStack Query hooks
 import { 
   BrainCircuit, 
   BookCopy, // Use consistent icon from previous iteration
@@ -14,33 +18,36 @@ import {
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { NoteCard } from '@/components/notes/NoteCard'; // Import updated NoteCard
+import { NoteCard, NoteCardSkeleton } from '@/components/notes/NoteCard'; // Import updated NoteCard and Skeleton
 import { cn } from '@/lib/utils';
+import { useGetNotesQuery } from '@/hooks/useNotesQueries';
+import type { Note } from '@/lib/mockData';
+import type { NoteListItem } from '@/hooks/useNotesQueries';
 
 // Mock Data (matching updated NoteCard interface)
-const mockRecentNotes = [
-  { 
-    id: '1', 
-    title: 'Quantum Mechanics Fundamentals', 
-    excerpt: 'Wave functions, Schrödinger equation, and quantum states...',
-    date: 'Apr 1, 2025',
-    category: 'Physics'
-  },
-  { 
-    id: '2', 
-    title: 'Neural Networks Architecture', 
-    excerpt: 'Deep learning models, activation functions, and backpropagation...',
-    date: 'Mar 30, 2025',
-    category: 'Computer Science'
-  },
-  { 
-    id: '3', 
-    title: 'World War II Major Events', 
-    excerpt: 'Timeline of significant battles and political developments...',
-    date: 'Mar 28, 2025',
-    category: 'History'
-  }
-];
+// const mockRecentNotes = [
+//   { 
+//     id: '1', 
+//     title: 'Quantum Mechanics Fundamentals', 
+//     excerpt: 'Wave functions, Schrödinger equation, and quantum states...',
+//     date: 'Apr 1, 2025',
+//     category: 'Physics'
+//   },
+//   { 
+//     id: '2', 
+//     title: 'Neural Networks Architecture', 
+//     excerpt: 'Deep learning models, activation functions, and backpropagation...',
+//     date: 'Mar 30, 2025',
+//     category: 'Computer Science'
+//   },
+//   { 
+//     id: '3', 
+//     title: 'World War II Major Events', 
+//     excerpt: 'Timeline of significant battles and political developments...',
+//     date: 'Mar 28, 2025',
+//     category: 'History'
+//   }
+// ];
 
 const learningTools = [
   {
@@ -85,32 +92,32 @@ const ICON_CREATE_SIZE = "h-6 w-6";
 
 export function DashboardPage() {
   console.log("DashboardPage rendering..."); // Log component render
+  const navigate = useNavigate(); // Hook for navigation
+  const queryClient = useQueryClient(); // If NoteCard needs it for mutations
 
-  // --- Add Data Fetching Hooks Here (Example using mock data for now) ---
-  // const { data: recentNotes, isLoading: isLoadingNotes, isError: isErrorNotes } = useQuery(...);
-  // const { data: userStats, isLoading: isLoadingStats, isError: isErrorStats } = useQuery(...);
+  // Use the provided notes query hook
+  const { data, isLoading: isLoadingNotes, isError: isErrorNotes } = useGetNotesQuery();
 
-  // Log query status
-  // console.log("Recent Notes Query:", { isLoading: isLoadingNotes, isError: isErrorNotes });
-  // console.log("User Stats Query:", { isLoading: isLoadingStats, isError: isErrorStats });
+  // Ensure data.notes exists before slicing
+  const recentNotes = data?.notes ? data.notes.slice(0, 3) : [];
+
+  console.log("Recent Notes Query:", { isLoading: isLoadingNotes, isError: isErrorNotes, data, recentNotes }); // Log raw data and processed notes
 
   // TODO: Implement actual onClick handlers for non-Link cards/buttons
-  const handleCreateTextClick = () => console.log('Create Text Clicked');
   const handleCreateAudioClick = () => console.log('Create Audio Clicked');
   const handleCreateImageClick = () => console.log('Create Image Clicked');
 
-  // Handle loading state
-  // if (isLoadingNotes || isLoadingStats) {
-  //   return <div>Loading dashboard...</div>; // Or a Skeleton loader
-  // }
-
   // Handle error state (Could check for specific 401 here if needed)
-  // if (isErrorNotes || isErrorStats) {
-  //   console.error("Error fetching dashboard data");
-  //   // Optionally check the error object for status code if available from TanStack Query
-  //   return <div>Error loading dashboard data. Please try again later.</div>;
-  // }
+  if (isErrorNotes) {
+    console.error("Error fetching recent notes:", data); // Log the actual error if available
+    // Optionally check the error object for status code if available from TanStack Query
+    return <div>Error loading recent notes. Please try again later.</div>;
+  }
   
+  const handleNoteClick = (noteId: number) => {
+    navigate({ to: '/notes/$noteId', params: { noteId: String(noteId) } });
+  };
+
   // --- Log before returning JSX ---
   console.log("DashboardPage proceeding to render JSX");
 
@@ -167,22 +174,23 @@ export function DashboardPage() {
               variants={cardGridVariants} initial="hidden" animate="visible"
               className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4"
             >
-              {/* Text Card - Using Card directly */}
+              {/* Text Card - Wrapped in Link */}
               <motion.div variants={cardItemVariant}>
-                <Card 
-                  className="hover:shadow-md transition-shadow cursor-pointer h-full"
-                  onClick={handleCreateTextClick} // Use onClick for non-link cards
-                 >
-                  <CardContent className="p-6 flex flex-col items-center text-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-primary">
-                      <FileText className={ICON_CREATE_SIZE} />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-base text-foreground">Text</h3>
-                      <p className="text-sm text-muted-foreground mt-1">Create note from text</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <Link to="/pipelines/text" className="block h-full"> {/* Link to the new route */}
+                  <Card 
+                    className="hover:shadow-md transition-shadow h-full" // Removed cursor-pointer as Link handles interaction
+                   >
+                    <CardContent className="p-6 flex flex-col items-center text-center gap-4">
+                      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-primary">
+                        <FileText className={ICON_CREATE_SIZE} />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-base text-foreground">Text</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Create note from text</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               </motion.div>
               
               {/* Audio Card */} 
@@ -248,21 +256,34 @@ export function DashboardPage() {
                 <Link to="/notes">View all</Link>
               </Button>
             </div>
-            
-            <motion.div 
-              variants={cardGridVariants} initial="hidden" animate="visible"
-              className="space-y-4"
-            >
-              {/* TODO: Replace mockRecentNotes with fetched data */}
-              {mockRecentNotes.map(note => (
-                <motion.div key={note.id} variants={cardItemVariant}>
-                  <NoteCard note={note} />
-                </motion.div>
-              ))}
-              {/* Example: Add loading/error state for notes */}
-              {/* {isLoadingNotes && <p>Loading notes...</p>} */}
-              {/* {isErrorNotes && <p className="text-destructive">Error loading notes.</p>} */}
-            </motion.div>
+            {/* Grid for recent notes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"> 
+              {isLoadingNotes ? (
+                // Show skeletons while loading
+                Array.from({ length: 3 }).map((_, index) => (
+                  <NoteCardSkeleton key={`skeleton-${index}`} />
+                ))
+              ) : recentNotes.length > 0 ? (
+                // Render actual notes
+                recentNotes.map((note: NoteListItem) => (
+                  <NoteCard
+                    key={note.id}
+                    note={{
+                      ...note,
+                      sourceType: 'Text', // fallback, or use a real value if available
+                      summary: '', // fallback
+                      isFavorite: note.favorite,
+                    }}
+                    onClick={() => handleNoteClick(note.id)}
+                  />
+                ))
+              ) : (
+                 // Show message if no recent notes
+                 <div className="col-span-full text-center py-10 text-muted-foreground">
+                   No recent notes found. Create one to get started!
+                 </div>
+              )}
+            </div>
           </motion.section>
         </div>
         

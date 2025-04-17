@@ -10,6 +10,9 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { NoteDetailPage } from '@/pages/NoteDetailPage';
 import { NotesIndexPage } from '@/pages/NotesIndexPage'; // Import the new page component
 
+// Import the new pipeline component
+import { TextPipelineInput } from '@/components/pipelines/TextPipelineInput';
+
 // Import Auth Status hook
 import { useAuthStatus } from '@/hooks/useAuthStatus'; // Adjust path if needed
 
@@ -137,6 +140,14 @@ const folderDetailRoute = createRoute({
   beforeLoad: ensureUserIsAuthenticated,
 });
 
+// Text Pipeline route - Protected
+const textPipelineRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/pipelines/text',
+  component: TextPipelineInput, // Use the imported component
+  beforeLoad: ensureUserIsAuthenticated,
+});
+
 // --- Build Route Tree --- 
 // Add all defined routes as children of the single rootRoute
 const routeTree = rootRoute.addChildren([
@@ -146,7 +157,8 @@ const routeTree = rootRoute.addChildren([
   notesIndexRoute,// Path: '/notes'
   notesFavoritesRoute, // Path: '/notes/favorites'
   noteDetailRoute, // Path: '/notes/$noteId'
-  folderDetailRoute // Path: '/folders/$folderId'
+  folderDetailRoute, // Path: '/folders/$folderId'
+  textPipelineRoute // Path: '/pipelines/text'
 ]);
 
 // Create the router instance

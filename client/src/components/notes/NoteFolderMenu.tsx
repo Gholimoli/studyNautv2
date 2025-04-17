@@ -1,7 +1,7 @@
 // NoteFolderMenu.tsx
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { 
   Star, 
   Move, 
@@ -10,7 +10,9 @@ import {
   FolderKanban,
   FolderSync,
   Check,
-  Loader2
+  Loader2,
+  FolderPlus,
+  Folder
 } from "lucide-react";
 import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
@@ -29,6 +31,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { MoveNoteDialog } from '@/components/notes/MoveNoteDialog';
 import { useToast } from "@/hooks/use-toast"; // Ensure path is correct
@@ -36,42 +39,21 @@ import { cn } from '@/lib/utils';
 // Import the specific modifier function needed
 import { updateMockNoteFolder } from '@/lib/mockData';
 import { useFolders, FolderWithCount } from '@/hooks/useFolderQueries'; // Import useFolders
+import { useDeleteNote, useUpdateNote, NoteListItem as Note } from '@/hooks/useNotesQueries'; // Import the new hook
 // import { Note } from '@/types'; // Assuming a shared Note type exists
 
 // --- Type (Copied from NotesIndexPage for now - Define properly later) ---
 type NoteSourceType = 'PDF' | 'YouTube' | 'Audio' | 'Image' | 'Text';
-interface Note {
-  id: number;
-  title: string;
-  summary?: string;
-  content?: string; 
-  sourceType: NoteSourceType;
-  createdAt: string | Date;
-  folderId?: number | null;
-  isFavorite?: boolean;
-  tags?: { id: number; name: string }[];
-  languageCode?: string;
-}
-
 interface Folder {
   id: number;
   name: string;
 }
 // -------------------------------------------------------------------------
 
-// --- Placeholder API Functions (Needs Real Implementation) ---
-// These should ideally call mutation hooks defined elsewhere
-const placeholderDeleteNote = async (noteId: number) => { 
-    console.warn(`API Delete for ${noteId} needs implementation`); 
-    await new Promise(r => setTimeout(r, 300)); 
-};
-const placeholderToggleFavorite = async (noteId: number, currentStatus: boolean) => { 
-    console.warn(`API Favorite toggle for ${noteId} needs implementation`); 
-    await new Promise(r => setTimeout(r, 300)); 
-    // Simulate returning updated note data
-    return { id: noteId, title: 'Updated Note', isFavorite: !currentStatus } as unknown as Note;
-};
-// -------------------------------------------------------------------------
+// --- Placeholder API Functions (REMOVE UNUSED) ---
+// REMOVE placeholderDeleteNote and placeholderToggleFavorite if using real hooks
+// const placeholderDeleteNote = async (noteId: number) => { ... };
+// const placeholderToggleFavorite = async (noteId: number, isFavorite: boolean) => { ... };
 
 interface NoteFolderMenuProps {
   note: Note;
@@ -92,95 +74,21 @@ export function NoteFolderMenu({ note }: NoteFolderMenuProps) {
   // TODO: Handle hierarchy if needed later
   const folders = foldersData || []; 
 
-  // --- Mutations (Using placeholders for now - Replace with real hooks) ---
-  const { mutate: deleteNoteMutate, isPending: isDeleting } = useMutation<void, Error, number>({
-      mutationFn: placeholderDeleteNote,
-      onSuccess: (_, noteId) => {
-          toast({ title: "Note Deleted", description: `Note ${noteId} was deleted.` });
-          queryClient.invalidateQueries({ queryKey: ['notes'] });
-      },
-      onError: (error, noteId) => {
-          toast({ title: "Error", description: `Failed to delete note ${noteId}: ${error.message}`, variant: "destructive" });
-      }
-  });
-  
-   const { mutate: toggleFavoriteMutate, isPending: isTogglingFavorite } = useMutation<Note, Error, { noteId: number; isFavorite: boolean }>({
-    mutationFn: (vars) => placeholderToggleFavorite(vars.noteId, vars.isFavorite),
-    onSuccess: (updatedNote) => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      queryClient.setQueryData(['note', updatedNote.id], updatedNote); // Update detail cache
-      toast({ title: "Favorite status updated!" });
-      setIsMenuOpen(false);
-    },
-    onError: (error) => {
-      toast({ title: "Error updating favorite", description: error.message, variant: "destructive" });
-    }
-  });
+  // Use the new hook for deleting notes
+  const { mutate: deleteNoteMutate, isPending: isDeleting } = useDeleteNote();
+  const { mutate: moveNoteMutate, isPending: isMoving } = useUpdateNote(); // Use the new hook for moving notes
 
-  const moveNoteMutation = useMutation<Note, Error, { noteId: number; folderId: number | null }>({
-    // Call the localStorage-updating function
-    mutationFn: async (vars) => {
-      console.log(`MOCK moveNote: Moving Note ${vars.noteId} to Folder ${vars.folderId}`);
-      updateMockNoteFolder(vars.noteId, vars.folderId); // Update persisted mock data
-      await new Promise(resolve => setTimeout(resolve, 300)); // Simulate delay
-      
-      // Need to find the updated note to return the correct Note object type
-      // Note: This reads the *already updated* mockNotesData from memory/localStorage scope
-      const { mockNotesData: currentNotes } = await import('@/lib/mockData'); // Re-import to be sure
-      const updatedNote = currentNotes.find(n => n.id === vars.noteId);
+  // State for confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-      if (!updatedNote) {
-         console.error(`MOCK moveNote: Note ID ${vars.noteId} not found after update!`);
-         throw new Error("Note not found after update");
-      }
-      return updatedNote; 
-    },
-    onSuccess: (updatedNote, variables) => {
-      const { noteId, folderId: targetFolderId } = variables;
-      const sourceFolderId = note.folderId; // Folder the note was previously in
-
-      // Optimistically update the folder counts in the cache
-      queryClient.setQueryData<FolderWithCount[]>(['folders'], (oldData) => {
-        if (!oldData) return [];
-
-        return oldData.map(folder => {
-          let newCount = folder.noteCount;
-          // Decrement count of the source folder (if it exists and wasn't null)
-          if (sourceFolderId !== null && folder.id === sourceFolderId) {
-            newCount = Math.max(0, newCount - 1); // Prevent negative counts
-          }
-          // Increment count of the target folder (if it exists and isn't null)
-          if (targetFolderId !== null && folder.id === targetFolderId) {
-            newCount = newCount + 1;
-          }
-          // Return folder with potentially updated count
-          return { ...folder, noteCount: newCount };
-        });
-      });
-
-      // Invalidate queries to refetch in the background for consistency
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      queryClient.invalidateQueries({ queryKey: ['folders'] }); 
-      
-      toast({
-        title: "Note Moved",
-        description: `Note "${note.title}" moved successfully.`, 
-      });
-      setIsMenuOpen(false);
-      setIsSubMenuOpen(false);
-    },
-    onError: (error) => {
-      toast({ title: "Error", description: `Failed to move note: ${error.message}`, variant: "destructive" });
-    },
-  });
+  // --- Remove Placeholder Mutations ---
+  // const { mutate: deleteNoteMutate, isPending: isDeleting } = useMutation<void, Error, number>({ mutationFn: placeholderDeleteNote, ... });
+  // const { mutate: toggleFavoriteMutate, isPending: isTogglingFavorite } = useMutation<Note, Error, { noteId: number; isFavorite: boolean }>({ mutationFn: (vars) => placeholderToggleFavorite(vars.noteId, vars.isFavorite), ... });
+  // const moveNoteMutation = useMutation<Note, Error, { noteId: number; folderId: number | null }>( { mutationFn: async (vars) => { ... } ... });
 
   const confirmDelete = () => {
     deleteNoteMutate(note.id);
-  };
-  
-  const handleToggleFavorite = (e: React.MouseEvent) => {
-      e.preventDefault();
-      toggleFavoriteMutate({ noteId: note.id, isFavorite: !!note.isFavorite });
+    setIsDeleteDialogOpen(false); // Close dialog after confirming
   };
   
   const handleMoveNote = (folderId: number | null) => {
@@ -189,89 +97,111 @@ export function NoteFolderMenu({ note }: NoteFolderMenuProps) {
         setIsMenuOpen(false);
         return;
     }
-    moveNoteMutation.mutate({ noteId: note.id, folderId });
+    moveNoteMutate({ noteId: note.id, input: { folderId: folderId } }); // Use update hook format
+    // Close menus optimistically or in onSuccess of the hook
+    setIsSubMenuOpen(false);
+    setIsMenuOpen(false);
   };
 
   return (
-    <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
-          <MoreHorizontal className="h-4 w-4" />
-          <span className="sr-only">Note Actions</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Note Actions</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleToggleFavorite} disabled={isTogglingFavorite}>
-          {isTogglingFavorite ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Star className={cn("mr-2 h-4 w-4", note.isFavorite && "fill-amber-400 text-amber-500")} />
-          )}
-          <span>{note.isFavorite ? "Unfavorite" : "Favorite"}</span>
-        </DropdownMenuItem>
-        
-        <DropdownMenuSub open={isSubMenuOpen} onOpenChange={setIsSubMenuOpen}>
-          <DropdownMenuSubTrigger disabled={moveNoteMutation.isPending}>
-            {moveNoteMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-                <FolderSync className="mr-2 h-4 w-4" />
-            )}
-            <span>Move to folder...</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuLabel>Select Folder</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {isLoadingFolders ? (
-                 <DropdownMenuItem disabled className="flex justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                 </DropdownMenuItem>
-              ) : folders && folders.length > 0 ? (
-                folders.map((folder) => (
-                  <DropdownMenuItem 
-                    key={folder.id} 
-                    onClick={() => handleMoveNote(folder.id)} 
-                    disabled={note.folderId === folder.id}
-                  >
-                    <FolderKanban className="mr-2 h-4 w-4" />
-                    <span>{folder.name}</span>
-                    {note.folderId === folder.id && <Check className="ml-auto h-4 w-4 text-primary" />} 
-                  </DropdownMenuItem>
-                ))
+    <>
+      <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Note Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel>Note Actions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuSub open={isSubMenuOpen} onOpenChange={setIsSubMenuOpen}>
+            <DropdownMenuSubTrigger disabled={isMoving || isLoadingFolders}>
+              {isMoving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
               ) : (
-                <DropdownMenuItem disabled>No folders found.</DropdownMenuItem>
+                  <FolderPlus className="mr-2 h-4 w-4" />
               )}
-              {note.folderId && (
-                 <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => handleMoveNote(null)}>
-                        <FolderKanban className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span>Move out of folder</span>
+              <span>Move to...</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuLabel>Select Folder</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isLoadingFolders ? (
+                   <DropdownMenuItem disabled className="flex justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                   </DropdownMenuItem>
+                ) : (
+                  <>
+                    <DropdownMenuItem 
+                      onClick={() => handleMoveNote(null)} 
+                      disabled={note.folderId === null || isMoving}
+                      className={cn(note.folderId === null && "bg-accent/50")}
+                    >
+                      <Folder className="mr-2 h-4 w-4 opacity-50"/>
+                      (No Folder)
                     </DropdownMenuItem>
-                 </>
-              )}
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem 
-          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-          onClick={confirmDelete}
-          disabled={isDeleting}
-        >
-          {isDeleting ? (
-             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Trash2 className="mr-2 h-4 w-4" />
-          )}
-          <span>Delete Note</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                    {folders.map((folder) => (
+                      <DropdownMenuItem 
+                        key={folder.id} 
+                        onClick={() => handleMoveNote(folder.id)} 
+                        disabled={note.folderId === folder.id || isMoving}
+                        className={cn(note.folderId === folder.id && "bg-accent/50")}
+                      >
+                        <Folder className="mr-2 h-4 w-4"/>
+                        {folder.name}
+                      </DropdownMenuItem>
+                    ))}
+                    {folders.length === 0 && (
+                      <DropdownMenuItem disabled>
+                        No folders created yet.
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuItem 
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive" 
+            onClick={() => setIsDeleteDialogOpen(true)}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            <span>Delete Note</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the note
+              <span className="font-semibold"> "{note.title}"</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className={buttonVariants({ variant: "destructive" })} 
+              onClick={confirmDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 } 

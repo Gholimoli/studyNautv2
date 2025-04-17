@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, pgEnum, integer, jsonb, boolean, AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, timestamp, pgEnum, integer, jsonb, boolean, AnyPgColumn, primaryKey } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- Enums --- 
@@ -65,13 +65,33 @@ export const notes = pgTable('notes', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   folderId: integer('folder_id').references(() => folders.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 255 }).notNull(),
+  summary: text('summary'),
   markdownContent: text('markdown_content'),
   htmlContent: text('html_content'),
   languageCode: varchar('language_code', { length: 10 }),
   favorite: boolean('favorite').default(false).notNull(),
+  sourceType: sourceTypeEnum('source_type'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// --- NEW Tags Table --- 
+export const tags = pgTable('tags', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(), // Ensure tag names are unique
+});
+
+// --- NEW Notes <-> Tags Join Table --- 
+export const notesToTags = pgTable('notes_tags',
+  {
+    noteId: integer('note_id').notNull().references(() => notes.id, { onDelete: 'cascade' }),
+    tagId: integer('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  },
+  // Define composite primary key
+  (t) => ({
+    pk: primaryKey({ columns: [t.noteId, t.tagId] }),
+  })
+);
 
 // Add other tables (sources, notes, visuals, etc.) here later
 
@@ -118,7 +138,7 @@ export const visualsRelations = relations(visuals, ({ one }) => ({
     }),
 }));
 
-export const notesRelations = relations(notes, ({ one }) => ({
+export const notesRelations = relations(notes, ({ one, many }) => ({
     source: one(sources, {
         fields: [notes.sourceId],
         references: [sources.id],
@@ -131,4 +151,23 @@ export const notesRelations = relations(notes, ({ one }) => ({
         fields: [notes.folderId],
         references: [folders.id],
     }),
+    // Add relation to join table
+    notesToTags: many(notesToTags),
+}));
+
+// --- ADD tagsRelations --- 
+export const tagsRelations = relations(tags, ({ many }) => ({
+  notesToTags: many(notesToTags),
+}));
+
+// --- ADD notesToTagsRelations --- 
+export const notesToTagsRelations = relations(notesToTags, ({ one }) => ({
+  note: one(notes, {
+    fields: [notesToTags.noteId],
+    references: [notes.id],
+  }),
+  tag: one(tags, {
+    fields: [notesToTags.tagId],
+    references: [tags.id],
+  }),
 }));

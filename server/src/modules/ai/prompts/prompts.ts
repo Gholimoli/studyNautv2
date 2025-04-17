@@ -52,4 +52,29 @@ Text to analyze:
 Valid JSON Output:
 `;
 
-// Add other prompts (e.g., GENERATE_QUIZ, EXTRACT_FLASHCARDS) later. 
+// Add other prompts (e.g., GENERATE_QUIZ, EXTRACT_FLASHCARDS) later.
+
+export const GENERATE_QUIZ = (content: string): string => `...`;
+export const EXTRACT_FLASHCARDS = (content: string): string => `...`;
+
+/**
+ * Prompt to generate relevant subject tags from content.
+ * Expects a JSON response: { "tags": ["tag1", "tag2", ...] }
+ */
+export const GENERATE_TAGS = (content: string): string => `
+Analyze the following content and identify 3-5 concise, relevant subject tags or keywords that accurately represent the main topics.
+Focus on specific concepts, disciplines, or key entities mentioned.
+Avoid overly generic terms unless they are central to the theme.
+
+Return the tags as a JSON object with a single key "tags" containing an array of strings.
+
+Example Response:
+{ "tags": ["Quantum Physics", "Superposition", "Entanglement"] }
+
+Content to analyze:
+---
+${content}
+---
+
+JSON Response:
+`; 

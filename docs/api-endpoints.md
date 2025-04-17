@@ -187,9 +187,11 @@ This document provides a comprehensive listing of all API endpoints in the Study
           "title": "string",
           "createdAt": "string", // ISO 8601
           "updatedAt": "string", // ISO 8601
-          "sourceType": "YOUTUBE" | "TEXT" | "AUDIO" | "PDF" | "IMAGE", // Likely fetched via join
-          "favorite": boolean
-          // Potentially include a short content preview
+          "sourceType": "YOUTUBE" | "TEXT" | "AUDIO" | "PDF" | "IMAGE",
+          "favorite": boolean,
+          "languageCode": "string" | null,
+          "folderId": number | null,
+          "tags": [{ "id": number, "name": "string" }] | null
         }
         // ... more notes
       ],
@@ -227,18 +229,26 @@ This document provides a comprehensive listing of all API endpoints in the Study
 *   **Request Body:**
     ```json
     {
-      "title": "string",         // optional
-      "markdownContent": "string", // optional, if manual editing is allowed
-      "favorite": boolean          // optional
+      "favorite": boolean,
+      "folderId": number | null
     }
     ```
 *   **Response (Success 200):** Updated note summary.
     ```json
     {
       "id": number,
+      "sourceId": number,
+      "userId": number,
       "title": "string",
+      "summary": "string" | null,
+      "createdAt": "string",
+      "updatedAt": "string",
       "favorite": boolean,
-      "updatedAt": "string"
+      "folderId": number | null,
+      "markdownContent": "string" | null,
+      "htmlContent": "string" | null,
+      "languageCode": "string" | null,
+      "sourceType": "YOUTUBE" | "TEXT" | "AUDIO" | "PDF" | "IMAGE" | null
     }
     ```
 *   **Response (Error 400):** Invalid input.

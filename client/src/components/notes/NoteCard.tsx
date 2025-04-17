@@ -1,105 +1,29 @@
 import React from 'react';
-import { motion } from 'framer-motion'; // Ensure motion is imported
-import { useMutation, useQueryClient } from '@tanstack/react-query'; // Import mutation hooks
-import { useToast } from "@/hooks/use-toast"; // Import toast hook
-import { Card, CardContent } from '@/components/ui/card'; // Restore CardContent
+import { motion } from 'framer-motion';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton"; // Restore Skeleton
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from '@/lib/utils';
 import {
     FileText,
     Video,
     Mic,
-    ImageDown as Image,
+    Image as ImageIcon,
     CalendarDays,
     Tags,
     Star,
-    Loader2 // Import loader icon
+    Loader2,
+    Clock,
+    Globe
 } from "lucide-react";
 import { NoteFolderMenu } from '@/components/notes/NoteFolderMenu';
+import type { Tag } from '@/types/notes';
+import { useUpdateNote, NoteListItem as Note } from '@/hooks/useNotesQueries';
+import { formatDistanceToNow } from 'date-fns';
 
-// --- Types (Matching NotesIndexPage) --- 
-type NoteSourceType = 'PDF' | 'YouTube' | 'Audio' | 'Image' | 'Text';
-interface Note {
-    id: number;
-    title: string;
-    summary?: string;
-    sourceType: NoteSourceType;
-    createdAt: string | Date;
-    folderId?: number | null;
-    isFavorite?: boolean;
-    tags?: { id: number; name: string }[];
-    languageCode?: string;
-}
-
-// --- Helper Functions (Copied from NotesIndexPage for standalone use) ---
-// TODO: Move these to shared utils if used elsewhere
-function formatDate(date: Date | string): string {
-    const d = new Date(date);
-    return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
-}
-
-function LanguageIndicator({ languageCode }: { languageCode?: string }) {
-    if (!languageCode) return null;
-    let flag = '🏳️';
-    const upperCode = languageCode.toUpperCase();
-    switch (languageCode.toLowerCase()) {
-        case 'en': flag = '🇬🇧'; break;
-        case 'fr': flag = '🇫🇷'; break;
-        case 'es': flag = '🇪🇸'; break;
-        case 'de': flag = '🇩🇪'; break;
-    }
-    return (
-        <Badge variant="outline" className="text-xs font-normal px-1.5 py-0 h-5 whitespace-nowrap bg-background">
-            <span className="mr-1">{flag}</span>
-            {upperCode}
-        </Badge>
-    );
-}
-
-function getSourceBorderColor(sourceType: NoteSourceType): string {
-    switch (sourceType) {
-        case 'PDF': return "border-l-primary/80";
-        case 'YouTube': return "border-l-destructive/80";
-        case 'Audio': return "border-l-secondary/80";
-        case 'Image': return "border-l-success/80";
-        case 'Text': return "border-l-info/80";
-        default: return "border-l-muted/80";
-    }
-}
-
-const getSourceIcon = (sourceType: NoteSourceType): React.ReactElement => {
-    switch (sourceType) {
-        case 'PDF': return <FileText className="h-4 w-4" />;
-        case 'YouTube': return <Video className="h-4 w-4" />;
-        case 'Audio': return <Mic className="h-4 w-4" />;
-        case 'Image': return <Image className="h-4 w-4" />;
-        case 'Text':
-        default: return <FileText className="h-4 w-4" />;
-    }
-};
-// --------------------------------------------------
-
-// --- Placeholder API Function (Move to API layer later) ---
-const placeholderToggleFavorite = async ({ noteId, isFavorite }: { noteId: number; isFavorite: boolean }): Promise<Note> => { 
-    console.warn(`NOTE CARD API: Toggle favorite for ${noteId} needs implementation`); 
-    await new Promise(r => setTimeout(r, 300)); 
-    // Simulate returning updated note data
-    // In a real API, you'd return the actual updated note from the DB
-    const updatedNote = { 
-        // Spread existing note properties if available, otherwise use placeholders
-        id: noteId, 
-        title: 'Updated Note Title', 
-        sourceType: 'Text' as NoteSourceType,
-        createdAt: new Date().toISOString(),
-        // ... other properties ...
-        isFavorite: !isFavorite 
-    };
-    return updatedNote;
-};
-
-// --- Note Card Skeleton --- 
 export const NoteCardSkeleton = () => {
   return (
     <Card className="overflow-hidden border-l-4 border-l-muted/80">
@@ -115,6 +39,7 @@ export const NoteCardSkeleton = () => {
           <div className="flex space-x-2 pt-2">
             <Skeleton className="h-5 w-16 rounded-full" />
             <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-14 rounded-full" />
           </div>
         </div>
       </CardContent>
@@ -125,172 +50,207 @@ export const NoteCardSkeleton = () => {
   );
 };
 
-// --- Note Card Component --- 
 interface NoteCardProps {
     note: Note;
     onClick: () => void; 
 }
 
-export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick }) => {
-    // Log incoming props
-    console.log(`[NoteCard Render] ID: ${note.id}, isFavorite: ${note.isFavorite}`);
+// Define NoteSourceType locally for helpers
+export type NoteSourceType = 'PDF' | 'YouTube' | 'Audio' | 'Image' | 'Text' | 'YOUTUBE' | 'AUDIO' | 'IMAGE' | 'TEXT';
 
-    const SourceIcon = getSourceIcon(note.sourceType);
-    const summary = note.summary || generatePlaceholderSummary(note);
+// --------------------------------------------------
+// --- Helper Functions (Kept local) ---
+// --------------------------------------------------
+
+const formatRelativeDate = (date: string | Date): string => {
+  try {
+    return formatDistanceToNow(new Date(date), { addSuffix: true });
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "Invalid date";
+  }
+};
+
+// Map backend sourceType (uppercase) to frontend PascalCase
+function normalizeSourceType(sourceType: string): NoteSourceType {
+    switch (sourceType?.toUpperCase()) { // Handle potential undefined/null and ensure uppercase comparison
+        case 'YOUTUBE': return 'YouTube';
+        case 'AUDIO': return 'Audio';
+        case 'IMAGE': return 'Image';
+        case 'TEXT': return 'Text';
+        case 'PDF': return 'PDF';
+        default: return 'Text'; // Default to Text
+    }
+}
+
+function getSourceBorderColor(normalizedSourceType: NoteSourceType): string {
+    switch (normalizedSourceType) {
+        case 'PDF': return "border-l-primary/80";
+        case 'YouTube': return "border-l-destructive/80";
+        case 'Audio': return "border-l-secondary/80";
+        case 'Image': return "border-l-success/80";
+        case 'Text': return "border-l-info/80";
+        default: return "border-l-muted/80";
+    }
+}
+
+const getSourceIcon = (normalizedSourceType: NoteSourceType): React.ReactElement => {
+    switch (normalizedSourceType) {
+        case 'PDF': return <FileText className="h-4 w-4" />;
+        case 'YouTube': return <Video className="h-4 w-4" />;
+        case 'Audio': return <Mic className="h-4 w-4" />;
+        case 'Image': return <ImageIcon className="h-4 w-4" />; // Use ImageIcon alias
+        case 'Text':
+        default: return <FileText className="h-4 w-4" />;
+    }
+}
+
+// Simple language code to flag emoji mapping
+const getFlagEmoji = (langCode: string | null | undefined): string => {
+    if (!langCode) return '';
+    const code = langCode.toLowerCase().split('-')[0]; // Use base language code (e.g., 'en' from 'en-US')
+    switch (code) {
+        case 'en': return '🇺🇸'; // Or 🇬🇧?
+        case 'es': return '🇪🇸';
+        case 'fr': return '🇫🇷';
+        case 'de': return '🇩🇪';
+        case 'it': return '🇮🇹';
+        case 'pt': return '🇵🇹'; // Or 🇧🇷?
+        case 'ja': return '🇯🇵';
+        case 'ko': return '🇰🇷';
+        case 'zh': return '🇨🇳';
+        // Add more common languages as needed
+        default: return ''; // No flag for unknown/unmapped codes
+    }
+};
+
+// --------------------------------------------------
+// --- Main Component ---
+// --------------------------------------------------
+
+export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick }) => {
+    // console.log(`[NoteCard Render] ID: ${note.id}, isFavorite: ${note.favorite}`);
+    // console.log(`[NoteCard Render] Props received:`, note);
+
+    const isFavorite = note.favorite; 
+    const normalizedSourceType = normalizeSourceType(note.sourceType || 'Text');
+    const SourceIconComponent = getSourceIcon(normalizedSourceType);
+    const summary = note.summary || "No summary available.";
     const tags = note.tags || [];
     const queryClient = useQueryClient();
+    const languageCode = note.languageCode; // Get language code
+    const flagEmoji = getFlagEmoji(languageCode);
     const { toast } = useToast();
 
-    // --- Favorite Mutation ---
-    const toggleFavoriteMutation = useMutation<Note, Error, { noteId: number; isFavorite: boolean }>({ 
-        mutationFn: placeholderToggleFavorite,
-        onSuccess: (updatedNoteData, variables) => {
-            // Update the cache directly for immediate UI feedback
-            queryClient.setQueryData<Note[]>(['notes'], (oldData) => {
-                console.log(`[Cache Update] Updating note ID: ${variables.noteId}. Current favorite: ${variables.isFavorite}`);
-                if (!oldData) {
-                    console.log("[Cache Update] No old data found.");
-                    return [];
-                }
-                // Create a new array with the updated note
-                const newData = oldData.map(n => {
-                    if (n.id === variables.noteId) {
-                        console.log(`[Cache Update] Found note ${n.id}, changing favorite to ${!variables.isFavorite}`);
-                        return { ...n, isFavorite: !variables.isFavorite };
-                    }
-                    return n;
-                });
-                console.log("[Cache Update] New data generated:", newData);
-                return newData;
-            });
-
-            // Invalidate but DON'T refetch immediately, let the optimistic update stick
-            queryClient.invalidateQueries({ queryKey: ['notes'], refetchType: 'none' }); 
-
-            toast({
-                title: !variables.isFavorite ? "Added to Favorites" : "Removed from Favorites",
-            });
-        },
-        onError: (error) => {
-            toast({ 
-                title: "Error Updating Favorite", 
-                description: error.message,
-                variant: "destructive" 
-            });
-        },
-    });
+    const { mutate: toggleFavoriteMutate, isPending: isTogglingFavorite } = useUpdateNote(); 
 
     const handleToggleFavorite = (e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card navigation click
-        toggleFavoriteMutation.mutate({ noteId: note.id, isFavorite: !!note.isFavorite });
+        e.stopPropagation();
+        toggleFavoriteMutate({ 
+            noteId: note.id, 
+            input: { favorite: !isFavorite } 
+        });
     };
 
     return (
-        // Add h-full back to motion div
         <motion.div
             whileHover={{ scale: 1.005 }}
-            className="h-full" 
+            className="h-full cursor-pointer"
+            onClick={onClick}
         >
             <Card 
-                // Add h-full back to Card
                 className={cn(
                     "overflow-hidden transition-shadow duration-200 flex flex-col h-full group", 
                     "border-l-4", 
-                    getSourceBorderColor(note.sourceType)
+                    getSourceBorderColor(normalizedSourceType)
                 )}
             >
-                {/* Add h-full to CardContent, keep flex flex-col */}
-                <CardContent className="p-4 cursor-pointer flex flex-col h-full" onClick={onClick}> 
-                    {/* Top section: Meta-info on left, Actions on right */}
-                    <div className="flex items-start justify-between mb-2"> 
-                        {/* Left side: Meta info */}
-                        <div className="flex-shrink min-w-0 mr-4"> 
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                <div className="flex items-center text-xs text-muted-foreground whitespace-nowrap">
-                                    <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-                                    <span>{formatDate(note.createdAt).split(',')[0]}</span> 
-                                </div>
-                                <Badge variant="outline" className="text-xs font-normal px-1.5 py-0 h-5 whitespace-nowrap bg-background flex items-center">
-                                    {React.cloneElement(SourceIcon, { className: "h-3 w-3 mr-1" } as any)}
-                                    {note.sourceType}
-                                </Badge>
-                                <LanguageIndicator languageCode={note.languageCode} />
-                            </div>
-                        </div>
-                        {/* Right side: Actions */}
-                        <div className="flex items-center space-x-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}> 
-                            <Button 
-                                variant="ghost"
-                                size="icon"
-                                className={cn(
-                                    "h-7 w-7 rounded-full text-muted-foreground hover:text-amber-500",
-                                    note.isFavorite && "text-amber-500 fill-amber-400"
-                                )}
-                                onClick={handleToggleFavorite} 
-                                disabled={toggleFavoriteMutation.isPending} // Disable button when loading
-                                aria-label={note.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                            >
-                                {toggleFavoriteMutation.isPending ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                {/* Header: Contains all top-row elements */}
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4"> 
+                    {/* Left Side: Date, Flag, Lang, Source */}
+                    <div className="flex items-center space-x-2 text-xs text-muted-foreground flex-wrap">
+                        <Clock className="h-3 w-3 flex-shrink-0" /> 
+                        <span className="flex-shrink-0 whitespace-nowrap">{formatRelativeDate(note.createdAt)}</span> 
+
+                        {/* Language and Flag Badge */} 
+                        {languageCode && (
+                            <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-medium flex items-center space-x-1 flex-shrink-0">
+                                {flagEmoji ? (
+                                    <span className="leading-none">{flagEmoji}</span>
                                 ) : (
-                                    <Star className="h-4 w-4" />
+                                    <Globe className="h-3 w-3" /> // Fallback icon
                                 )}
-                            </Button>
-                            <NoteFolderMenu note={note} />
+                                <span className="leading-none">{languageCode.toUpperCase()}</span> 
+                            </Badge>
+                        )}
+
+                        {/* Source Info */}
+                        <div className="flex items-center space-x-1 flex-shrink-0">
+                            {SourceIconComponent} 
+                            <span>{normalizedSourceType}</span>
                         </div>
                     </div>
 
-                    {/* Note Title */}
-                    <h3 className="font-semibold text-base mb-1.5 line-clamp-2 group-hover:text-primary transition-colors" title={note.title}>
-                        {note.title}
-                    </h3>
+                    {/* Right Side: Actions (Star, Menu) */}
+                    <div className="flex items-center space-x-0.5"> {/* Reduced space */}
+                        <Button 
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                                "h-7 w-7 rounded-full text-muted-foreground hover:text-amber-500",
+                                isFavorite && "text-amber-500 fill-amber-400" 
+                            )}
+                            onClick={handleToggleFavorite} 
+                            disabled={isTogglingFavorite}
+                            aria-label={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                        >
+                            {isTogglingFavorite ? ( 
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Star className="h-4 w-4" />
+                            )}
+                        </Button>
+                        <NoteFolderMenu note={note as any} /> 
+                    </div>
+                </CardHeader>
+                
+                {/* Content: Title, Summary, Tags */}
+                <CardContent className="px-4 pb-4 pt-0 flex-grow flex flex-col"> {/* Adjusted padding */}
+                    {/* Title & Summary section */} 
+                    <div className="flex-grow mb-3"> {/* Added margin-bottom */}
+                        <h3 
+                            className="font-semibold text-base mb-1.5 line-clamp-2 group-hover:text-primary transition-colors cursor-pointer" 
+                            title={note.title}
+                            onClick={onClick} // Ensure title click works
+                        >
+                            {note.title}
+                        </h3>
+                        
+                        <p className="text-sm text-muted-foreground line-clamp-3"> {/* Keep line-clamp 3 */}
+                            {summary}
+                        </p>
+                    </div>
                     
-                    {/* Summary/Excerpt - NO flex-grow here */}
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2" title={summary}>
-                        {summary}
-                    </p>
-                    
-                    {/* Conditionally render tags or empty flex-grow spacer */}
-                    {tags.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-1.5 flex-grow items-end"> 
-                            <Tags className="h-3.5 w-3.5 text-muted-foreground mr-0.5 mb-0.5" /> 
-                            {tags.slice(0, 4).map((tag) => (
-                                <Badge 
-                                    key={tag.id} 
-                                    variant="secondary"
-                                    className="text-xs font-normal px-1.5 py-0 h-5 whitespace-nowrap"
-                                >
+                    {/* Tags section (at bottom of content) */} 
+                    {tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-auto pt-2"> {/* mt-auto pushes to bottom */}
+                            {tags.slice(0, 5).map((tag) => ( // Show up to 5 tags
+                                <Badge key={tag.id} variant="secondary" className="text-xs font-normal">
+                                    <Tags className="h-3 w-3 mr-1" /> 
                                     {tag.name}
                                 </Badge>
                             ))}
-                            {tags.length > 4 && (
-                                <Badge 
-                                    variant="secondary"
-                                    className="text-xs font-normal px-1.5 py-0 h-5 whitespace-nowrap"
-                                >
-                                    +{tags.length - 4} more
-                                </Badge>
+                            {tags.length > 5 && (
+                                <Badge variant="secondary" className="text-xs font-normal">...</Badge>
                             )}
                         </div>
-                    ) : (
-                       <div className="flex-grow"></div> // Empty div with flex-grow
                     )}
                 </CardContent>
 
-                {/* NO FOOTER */}
+                {/* NO CardFooter needed anymore */}
             </Card>
         </motion.div>
     );
 };
 
-// Placeholder summary function needs to be defined if used
-function generatePlaceholderSummary(note: Note): string {
-    const summaries = {
-        PDF: "Summary from PDF document.",
-        YouTube: "Key points from YouTube video.",
-        Audio: "Transcription highlights from audio.",
-        Image: "Information extracted from image.",
-        Text: "Overview of the provided text."
-    };
-    return note.summary || summaries[note.sourceType] || "General note summary.";
-} 
+export default NoteCard; 

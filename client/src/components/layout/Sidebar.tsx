@@ -17,11 +17,13 @@ import {
     Settings,
     AlertCircle, // Icon for error
     Trash2, // Icon for delete
-    Edit // Icon for rename (later)
+    Edit, // Icon for rename (later)
+    MoreVertical, // Import MoreVertical
+    Loader2, // Import Loader2
+    BookOpen // Import BookOpen
 } from "lucide-react";
-import { useFolders, FolderWithCount, useDeleteFolder, useUpdateFolder, Folder } from '@/hooks/useFolderQueries'; // Import the hook and type
+import { useFolders, FolderWithCount, useDeleteFolder, Folder } from '@/hooks/useFolderQueries'; // Import the hook and type
 import { CreateFolderDialog } from '@/components/folders/CreateFolderDialog'; // Import the dialog
-import { RenameFolderDialog } from '@/components/folders/RenameFolderDialog'; // Import Rename dialog
 import { ConfirmationDialog } from '@/components/common/ConfirmationDialog'; // Import ConfirmationDialog
 import {
     ContextMenu,
@@ -30,6 +32,7 @@ import {
     ContextMenuTrigger,
 } from "@/components/ui/context-menu"; // Import ContextMenu
 import { Link, useLocation, useParams } from '@tanstack/react-router'; // Import Link and useLocation
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog';
 
 interface NavItemProps {
     href: string;
@@ -73,7 +76,6 @@ interface FolderItemProps {
 const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) => {
     const [isOpen, setIsOpen] = React.useState(false);
     const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
-    const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
     const deleteFolderMutation = useDeleteFolder();
     
     const ExpandIcon = isOpen ? ChevronDown : ChevronRight;
@@ -85,19 +87,8 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) 
 
     const confirmDelete = () => {
         deleteFolderMutation.mutate(folder.id);
+        setIsConfirmDeleteDialogOpen(false);
     };
-    
-    const handleRename = () => {
-        setIsRenameDialogOpen(true);
-    };
-
-    // Cast folder to Folder type for the dialog prop
-    // Ensure it only includes properties defined in FolderType
-    const folderForDialog: Folder | null = folder ? { 
-        id: folder.id, 
-        name: folder.name, 
-        parentId: folder.parentId, 
-    } : null;
 
     const handleContextMenuTriggerClick = (e: React.MouseEvent) => {
         // Allow context menu to open without navigating
@@ -143,16 +134,15 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) 
                 </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-48">
-                <ContextMenuItem onClick={handleRename}> 
-                    <Edit className="mr-2 h-4 w-4" />
-                    Rename
-                </ContextMenuItem>
                 <ContextMenuItem 
                     onClick={handleDelete} 
                     className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                     disabled={deleteFolderMutation.isPending}
                 >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    {deleteFolderMutation.isPending ? 
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
+                        <Trash2 className="mr-2 h-4 w-4" />
+                    }
                     Delete Folder
                 </ContextMenuItem>
             </ContextMenuContent>
@@ -167,13 +157,6 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) 
                 confirmText="Delete"
             />
 
-            {/* Rename Dialog */}
-            <RenameFolderDialog 
-                isOpen={isRenameDialogOpen}
-                onOpenChange={setIsRenameDialogOpen}
-                folder={folderForDialog} // Pass the current folder data
-            />
-
             {/* Recursive children rendering */}
             {isOpen && hasChildren && (
                 <div className="mt-1 space-y-1">
@@ -182,7 +165,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) 
                             key={childFolder.id} 
                             folder={childFolder} 
                             level={level + 1} 
-                            isActive={false}
+                            isActive={false} // Pass active state if needed based on route params
                         />
                     ))}
                 </div>
@@ -228,6 +211,7 @@ function Sidebar() {
 
     const { data: folders, isLoading, error, isError } = useFolders();
     const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false); // State for dialog
+    const [dialogOpen, setDialogOpen] = useState<Record<number, boolean>>({}); // State for dialog open
 
     // --- Placeholder Data --- 
     // TODO: Replace with actual counts from API or calculations

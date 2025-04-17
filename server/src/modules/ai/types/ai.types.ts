@@ -78,6 +78,10 @@ export const aiFlashcardsSchema = z.object({
 });
 export type AiFlashcards = z.infer<typeof aiFlashcardsSchema>;
 
+// Type for the expected JSON response for tag generation
+export interface AiTagResponse {
+  tags: string[];
+}
 
 // --- Configuration Types ---
 

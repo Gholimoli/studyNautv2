@@ -1,10 +1,24 @@
-import { IAiProvider, AiProviderType, AiRequestOptions, AiResponse, AiStructuredContent, aiStructuredContentSchema } from './types/ai.types';
+import { 
+  IAiProvider, 
+  AiProviderType, 
+  AiRequestOptions, 
+  AiResponse, 
+  AiStructuredContent, 
+  aiStructuredContentSchema,
+  AiTagResponse
+} from '@/modules/ai/types/ai.types';
 import { GeminiProvider } from './providers/gemini.provider';
 import { OpenAiProvider } from './providers/openai.provider';
 import * as dotenv from 'dotenv';
-import { GENERATE_LESSON_STRUCTURE } from './prompts/prompts';
+import { GENERATE_LESSON_STRUCTURE, GENERATE_TAGS } from './prompts/prompts';
+import * as z from 'zod';
 
 dotenv.config({ path: '../../.env' }); // Adjust path relative to dist/
+
+// Define Zod schema for tag response validation
+const aiTagResponseSchema = z.object({
+  tags: z.array(z.string()).min(1).max(10), // Expect 1-10 string tags
+});
 
 const PRIMARY_PROVIDER_NAME = (process.env.PRIMARY_AI_PROVIDER || 'gemini') as AiProviderType;
 const FALLBACK_PROVIDER_NAME = (process.env.FALLBACK_AI_PROVIDER || 'openai') as AiProviderType;
@@ -43,11 +57,22 @@ class AiService {
    */
   private async generateTextWithFallback(prompt: string, options?: AiRequestOptions): Promise<AiResponse> {
     console.log(`[AiService] Generating text using primary provider: ${this.primaryProvider.providerName}`);
-    let response = await this.primaryProvider.generateText(prompt, options);
-
+    let response: AiResponse;
+    try {
+      response = await this.primaryProvider.generateText(prompt, options);
+    } catch (error) {
+        console.error(`[AiService] Primary provider ${this.primaryProvider.providerName} threw error:`, error);
+        response = { content: null, errorMessage: (error instanceof Error ? error.message : 'Unknown error'), usage: undefined };
+    }
+    
     if (response.content === null && this.fallbackProvider) {
       console.warn(`[AiService] Primary provider failed (${response.errorMessage}). Trying fallback: ${this.fallbackProvider.providerName}`);
-      response = await this.fallbackProvider.generateText(prompt, options);
+      try {
+        response = await this.fallbackProvider.generateText(prompt, options);
+      } catch (fallbackError) {
+          console.error(`[AiService] Fallback provider ${this.fallbackProvider.providerName} threw error:`, fallbackError);
+          response = { content: null, errorMessage: (fallbackError instanceof Error ? fallbackError.message : 'Unknown error'), usage: undefined };
+      }
       if (response.content === null) {
          console.error(`[AiService] Fallback provider also failed (${response.errorMessage}).`);
       }
@@ -60,13 +85,11 @@ class AiService {
    * Ensures the output conforms to the AiStructuredContent schema.
    */
   async generateLessonStructure(sourceText: string): Promise<AiStructuredContent | null> {
-    // Format the prompt with the source text
     const prompt = GENERATE_LESSON_STRUCTURE.replace('{SOURCE_TEXT}', sourceText);
     
     const options: AiRequestOptions = {
         jsonMode: true,
         temperature: 0.5, 
-        // Consider adding maxOutputTokens based on expected structure size
     };
 
     const response = await this.generateTextWithFallback(prompt, options);
@@ -81,7 +104,7 @@ class AiService {
       const validatedData = aiStructuredContentSchema.safeParse(parsedJson);
       
       if (!validatedData.success) {
-        console.error('[AiService] Failed to validate AI response schema:', validatedData.error.errors);
+        console.error('[AiService] Failed to validate lesson structure schema:', validatedData.error.errors);
         console.error('[AiService] Invalid JSON content received:', response.content.substring(0, 500)); 
         return null;
       }
@@ -90,9 +113,52 @@ class AiService {
       return validatedData.data;
 
     } catch (error) {
-      console.error('[AiService] Failed to parse AI response as JSON:', error);
+      console.error('[AiService] Failed to parse lesson structure as JSON:', error);
       console.error('[AiService] Raw AI content:', response.content.substring(0, 500)); 
       return null;
+    }
+  }
+
+  /**
+   * Generates relevant subject tags for the given text content.
+   * Returns an array of tag strings.
+   */
+  async generateTags(textContent: string): Promise<string[]> {
+    const MAX_TAG_INPUT_LENGTH = 5000;
+    const truncatedText = textContent.substring(0, MAX_TAG_INPUT_LENGTH);
+    
+    const prompt = GENERATE_TAGS(truncatedText);
+    const options: AiRequestOptions = {
+      jsonMode: true,
+      temperature: 0.3,
+      maxOutputTokens: 100
+    };
+
+    console.log('[AiService] Generating tags...');
+    const response = await this.generateTextWithFallback(prompt, options);
+
+    if (!response.content) {
+      console.error('[AiService] Failed to generate tags. No content received.', { error: response.errorMessage });
+      return [];
+    }
+
+    try {
+      const parsedJson = JSON.parse(response.content);
+      const validatedData = aiTagResponseSchema.safeParse(parsedJson);
+      
+      if (!validatedData.success) {
+        console.error('[AiService] Failed to validate AI tag response schema:', validatedData.error.errors);
+        console.error('[AiService] Invalid JSON content received for tags:', response.content.substring(0, 500)); 
+        return [];
+      }
+      
+      console.log(`[AiService] Successfully generated ${validatedData.data.tags.length} tags.`);
+      return validatedData.data.tags;
+
+    } catch (error) {
+      console.error('[AiService] Failed to parse AI tag response as JSON:', error);
+      console.error('[AiService] Raw AI content for tags:', response.content.substring(0, 500)); 
+      return [];
     }
   }
 

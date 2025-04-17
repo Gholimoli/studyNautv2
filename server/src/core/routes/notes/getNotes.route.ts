@@ -3,6 +3,7 @@ import { db } from '../../db/index';
 import { notes } from '../../db/schema';
 import { ensureAuthenticated } from '../../middleware/auth.middleware';
 import { eq } from 'drizzle-orm';
+import { getUserNotes } from '@/modules/notes/notes.service';
 // If you need RequestWithUser, define it here or use Request & { user: ... } inline
 // import type { RequestWithUser } from '../../middleware/auth.middleware';
 
@@ -21,22 +22,28 @@ router.get('/', ensureAuthenticated, async (req: Request, res: Response): Promis
   }
   const userId = user.id;
 
-  try {
-    const userNotes = await db
-      .select({
-        id: notes.id,
-        title: notes.title,
-        // TODO: Add contentPreview when schema supports it
-        createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
-        // Add other relevant fields like isArchived, tags, etc.
-      })
-      .from(notes)
-      .where(eq(notes.userId, userId))
-      .orderBy(notes.updatedAt); // Consider making sort order configurable?
+  // Parse query params for limit/offset/favorite/folderId as needed
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+  const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+  const favorite = req.query.favorite !== undefined ? req.query.favorite === 'true' : undefined;
+  
+  // --- Refined folderId Parsing ---
+  const folderIdParam = req.query.folderId;
+  let folderId: number | undefined = undefined; // Initialize as undefined
+  if (folderIdParam !== undefined && typeof folderIdParam === 'string') {
+      const parsedId = parseInt(folderIdParam, 10);
+      if (!isNaN(parsedId)) {
+          folderId = parsedId; // Assign only if it's a valid number
+      }
+      // Note: We are not handling folderId=null via query param here.
+      // Filtering for null folderId usually happens when NO folderId is provided.
+  }
+  // -----------------------------
 
-    // Send the response
-    res.status(200).json(userNotes);
+  try {
+    // Pass the potentially undefined folderId
+    const result = await getUserNotes(userId, { limit, offset, favorite, folderId });
+    res.status(200).json(result);
   } catch (error) {
     console.error('Error fetching notes:', error);
     // Log the specific error for debugging

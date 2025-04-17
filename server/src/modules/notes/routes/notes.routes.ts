@@ -24,7 +24,10 @@ interface AuthenticatedRequest extends Request {
 const GetNotesListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
-  favorite: z.enum(['true', 'false']).optional().transform(val => val === 'true'),
+  favorite: z.enum(['true', 'false'])
+    .optional()
+    .transform(val => (val === undefined ? undefined : val === 'true')),
+  folderId: z.coerce.number().int().positive().optional(),
 });
 
 // Use the explicit AuthenticatedRequest type
@@ -37,16 +40,17 @@ const getNotesListHandler = async (req: AuthenticatedRequest, res: Response, nex
   }
 
   const validation = GetNotesListQuerySchema.safeParse(req.query);
+  
   if (!validation.success) {
     res.status(400).json({ message: 'Invalid query parameters', errors: validation.error.format() });
     return;
   }
 
-  const { limit, offset, favorite } = validation.data;
-
+  const { limit, offset, favorite, folderId } = validation.data;
+  
   try {
     // Call the service function
-    const result = await getUserNotes(userId, { limit, offset, favorite });
+    const result = await getUserNotes(userId, { limit, offset, favorite, folderId });
     res.status(200).json(result); // Send the { notes, total } object
 
   } catch (error) {
@@ -120,6 +124,7 @@ const UpdateNoteBodySchema = z.object({
 
 // PATCH /:id Handler
 const updateNoteHandler = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  console.log('[PATCH /notes/:id] Handler called');
   const userId = req.user?.id;
   if (!userId) {
     res.status(401).json({ message: 'Unauthorized' });
@@ -149,17 +154,24 @@ const updateNoteHandler = async (req: AuthenticatedRequest, res: Response, next:
   try {
     const updatedNote = await updateNote(noteId, userId, updateData);
     if (!updatedNote) {
+      console.error('[PATCH /notes/:id] Update failed: note not found or not authorized', { noteId, userId, updateData });
       res.status(404).json({ message: 'Note not found or not authorized to update.' });
       return;
     }
     res.status(200).json(updatedNote);
   } catch (error) {
-      console.error(`Error updating note ${noteId}:`, error);
-      if (!res.headersSent) {
-          res.status(500).json({ message: 'Failed to update note.' });
-      } else {
-          next(error); // Pass to default handler
-      }
+    console.error(`[PATCH /notes/:id] Error updating note`, {
+      noteId,
+      userId,
+      updateData,
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Failed to update note.' });
+    } else {
+      next(error);
+    }
   }
 };
 

@@ -100,6 +100,19 @@ Refer to the [shadcn/ui documentation](https://ui.shadcn.com/docs) for usage exa
 *   **Labels:** Ensure all form inputs have associated labels.
 *   **Color Contrast:** Adhere to WCAG AA contrast ratios.
 
+### 6.1. Note Cards
+
+- Consistent height in grid/list views.
+- Visual indicator for source type (icon).
+- Top-left header: Date, Flag (if available), Language Code (if available), Source Icon/Type
+- Top-right header: Favorite (Star) icon, Action Menu (e.g., NoteFolderMenu)
+- No footer; Actions are in the header.
+- Preview of content (truncated).
+- Hover actions (favorite, delete, share).
+- Content: Title, Summary, Tags (at bottom of content area).
+
+### 6.2. Note Detail View
+
 ## 7. Implementation Notes
 
 *   **`cn` Utility:** Use the `cn` utility function (from `lib/utils`) provided by shadcn/ui to merge Tailwind classes, especially for conditional styling.
