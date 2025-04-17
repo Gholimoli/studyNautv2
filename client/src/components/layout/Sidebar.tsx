@@ -9,16 +9,27 @@ import {
     Network,
     Layers3,
     CheckSquare,
-    Folder,
+    Folder as FolderIcon, // Alias the icon import
     Plus,
     ChevronDown,
     ChevronRight,
     Star,
     Settings,
-    AlertCircle // Icon for error
+    AlertCircle, // Icon for error
+    Trash2, // Icon for delete
+    Edit // Icon for rename (later)
 } from "lucide-react";
-import { useFolders, FolderWithCount } from '@/hooks/useFolderQueries'; // Import the hook and type
+import { useFolders, FolderWithCount, useDeleteFolder, useUpdateFolder, Folder } from '@/hooks/useFolderQueries'; // Import the hook and type
 import { CreateFolderDialog } from '@/components/folders/CreateFolderDialog'; // Import the dialog
+import { RenameFolderDialog } from '@/components/folders/RenameFolderDialog'; // Import Rename dialog
+import { ConfirmationDialog } from '@/components/common/ConfirmationDialog'; // Import ConfirmationDialog
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/components/ui/context-menu"; // Import ContextMenu
+import { Link, useLocation, useParams } from '@tanstack/react-router'; // Import Link and useLocation
 
 interface NavItemProps {
     href: string;
@@ -30,14 +41,14 @@ interface NavItemProps {
 }
 
 const NavItem: React.FC<NavItemProps> = ({ href, icon: Icon, label, count, isActive, isSubItem }) => (
-    <a
-        href={href} // Replace with router Link component later
+    <Link
+        to={href}
         className={cn(
             "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
             isActive
-                ? "bg-primary/10 text-primary" // Active state style
+                ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            isSubItem && "pl-9" // Indent sub-items
+            isSubItem && "pl-9"
         )}
     >
         <Icon className="h-4 w-4" />
@@ -50,45 +61,120 @@ const NavItem: React.FC<NavItemProps> = ({ href, icon: Icon, label, count, isAct
                 {count}
             </span>
         )}
-    </a>
+    </Link>
 );
 
 interface FolderItemProps {
-    folder: FolderWithCount; // Use the fetched folder data type
-    level?: number; // To handle indentation for nesting
-    isActive?: boolean; // TODO: Determine active folder based on route/params
+    folder: FolderWithCount;
+    level?: number;
+    isActive?: boolean;
 }
 
 const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) => {
     const [isOpen, setIsOpen] = React.useState(false);
-    const Icon = isOpen ? ChevronDown : ChevronRight;
+    const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+    const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+    const deleteFolderMutation = useDeleteFolder();
+    
+    const ExpandIcon = isOpen ? ChevronDown : ChevronRight;
     const hasChildren = folder.children && folder.children.length > 0;
 
+    const handleDelete = () => {
+        setIsConfirmDeleteDialogOpen(true);
+    };
+
+    const confirmDelete = () => {
+        deleteFolderMutation.mutate(folder.id);
+    };
+    
+    const handleRename = () => {
+        setIsRenameDialogOpen(true);
+    };
+
+    // Cast folder to Folder type for the dialog prop
+    // Ensure it only includes properties defined in FolderType
+    const folderForDialog: Folder | null = folder ? { 
+        id: folder.id, 
+        name: folder.name, 
+        parentId: folder.parentId, 
+    } : null;
+
+    const handleContextMenuTriggerClick = (e: React.MouseEvent) => {
+        // Allow context menu to open without navigating
+        // e.preventDefault(); // Might not be needed if Link handles it
+    };
+
     return (
-        <div>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                disabled={!hasChildren} // Disable toggle if no children
-                style={{ paddingLeft: `${0.75 + level * 1.25}rem` }} // Dynamic indentation (adjust multiplier as needed)
-                className={cn(
-                    "flex w-full items-center gap-2 rounded-md py-2 pr-3 text-sm font-medium transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
-                    isActive && "bg-muted text-foreground", // Active state
-                    !hasChildren && "cursor-default hover:bg-transparent" // Style for non-expandable items
-                )}
-            >
-                {hasChildren ? (
-                    <Icon className="h-4 w-4 flex-shrink-0" />
-                ) : (
-                    <span className="w-4 h-4 flex-shrink-0"></span> // Placeholder for alignment
-                )}
-                <Folder className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate flex-grow text-left">{folder.name}</span>
-                <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground flex-shrink-0">
-                    {folder.noteCount}
-                </span>
-                {/* Add Context Menu Trigger here later */}
-            </button>
-            {/* Render children recursively */}
+        <ContextMenu>
+            <ContextMenuTrigger asChild>
+                <div className="relative">
+                    {/* Expand/Collapse button or spacer, absolutely positioned */}
+                    {hasChildren ? (
+                        <button
+                            type="button"
+                            onClick={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsOpen(!isOpen);
+                            }}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center h-4 w-4 bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground"
+                            aria-label={isOpen ? "Collapse folder" : "Expand folder"}
+                            tabIndex={-1}
+                        >
+                            <ExpandIcon className="h-4 w-4 flex-shrink-0" />
+                        </button>
+                    ) : (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 flex-shrink-0" />
+                    )}
+                    <Link
+                        to="/folders/$folderId"
+                        params={{ folderId: String(folder.id) }}
+                        className={cn(
+                            "flex items-center gap-3 rounded-md py-2 pr-3 pl-7 text-sm font-medium transition-colors text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                            isActive && "bg-muted text-foreground"
+                        )}
+                    >
+                        <FolderIcon className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{folder.name}</span>
+                        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground flex-shrink-0">
+                            {folder.noteCount}
+                        </span>
+                    </Link>
+                </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-48">
+                <ContextMenuItem onClick={handleRename}> 
+                    <Edit className="mr-2 h-4 w-4" />
+                    Rename
+                </ContextMenuItem>
+                <ContextMenuItem 
+                    onClick={handleDelete} 
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    disabled={deleteFolderMutation.isPending}
+                >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Folder
+                </ContextMenuItem>
+            </ContextMenuContent>
+
+            {/* Confirmation Dialog for Delete */}
+            <ConfirmationDialog 
+                isOpen={isConfirmDeleteDialogOpen}
+                onOpenChange={setIsConfirmDeleteDialogOpen}
+                onConfirm={confirmDelete}
+                title="Delete Folder?"
+                description={`Are you sure you want to delete the folder "${folder.name}"? Notes inside will not be deleted but will be moved out.`}
+                confirmText="Delete"
+            />
+
+            {/* Rename Dialog */}
+            <RenameFolderDialog 
+                isOpen={isRenameDialogOpen}
+                onOpenChange={setIsRenameDialogOpen}
+                folder={folderForDialog} // Pass the current folder data
+            />
+
+            {/* Recursive children rendering */}
             {isOpen && hasChildren && (
                 <div className="mt-1 space-y-1">
                     {folder.children.map((childFolder) => (
@@ -96,37 +182,60 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, level = 0, isActive }) 
                             key={childFolder.id} 
                             folder={childFolder} 
                             level={level + 1} 
-                            isActive={false} // Pass active state down if needed
+                            isActive={false}
                         />
                     ))}
                 </div>
             )}
-        </div>
+        </ContextMenu>
     );
 };
 
 // Recursive component to render the folder list
 interface FolderListProps {
     folders: FolderWithCount[];
+    activeFolderId?: number | null;
 }
 
-const FolderList: React.FC<FolderListProps> = ({ folders }) => {
+const FolderList: React.FC<FolderListProps> = ({ folders, activeFolderId }) => {
     if (!folders || folders.length === 0) {
         return <p className="px-4 text-sm text-muted-foreground">No folders yet.</p>;
     }
     return (
         <div className="space-y-1">
             {folders.map((folder) => (
-                <FolderItem key={folder.id} folder={folder} isActive={false} />
+                <FolderItem 
+                    key={folder.id} 
+                    folder={folder} 
+                    isActive={folder.id === activeFolderId}
+                />
             ))}
         </div>
     );
 };
 
 function Sidebar() {
-    const currentPath = "/dashboard"; // Placeholder
+    const location = useLocation();
+    const params = useParams({ strict: false });
+    const currentPathname = location.pathname;
+
+    // Determine active state by comparing pathnames
+    const isNotesActive = currentPathname === '/notes';
+    const isNotesFavoritesActive = currentPathname === '/notes/favorites';
+    const isDashboardActive = currentPathname === '/';
+    const activeFolderId = params.folderId ? parseInt(params.folderId, 10) : null;
+    // Add other routes as needed...
+
     const { data: folders, isLoading, error, isError } = useFolders();
     const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false); // State for dialog
+
+    // --- Placeholder Data --- 
+    // TODO: Replace with actual counts from API or calculations
+    const allNotesCount = 12;
+    const mindMapsCount = 3;
+    const flashcardsCount = 5;
+    const quizzesCount = 2;
+    // --- End Placeholder --- 
 
     return (
         <>
@@ -137,12 +246,12 @@ function Sidebar() {
                 </div>
                 <div className="flex-1 overflow-y-auto py-4">
                     <nav className="grid items-start px-2 text-sm font-medium lg:px-4 space-y-1">
-                        {/* Main Navigation */}
-                        <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" isActive={currentPath === '/dashboard'} />
-                        <NavItem href="/notes" icon={StickyNote} label="All Notes" count={12} isActive={currentPath === '/notes'} />
-                        <NavItem href="/mind-maps" icon={Network} label="Mind Maps" count={3} isActive={currentPath === '/mind-maps'} />
-                        <NavItem href="/flashcards" icon={Layers3} label="Flashcards" count={5} isActive={currentPath === '/flashcards'} />
-                        <NavItem href="/quizzes" icon={CheckSquare} label="Quizzes" count={2} isActive={currentPath === '/quizzes'} />
+                        {/* Main Navigation - Use TanStack Link and active state */}
+                        <NavItem href="/" icon={LayoutDashboard} label="Dashboard" isActive={isDashboardActive} />
+                        <NavItem href="/notes" icon={StickyNote} label="All Notes" count={allNotesCount} isActive={isNotesActive} /> 
+                        <NavItem href="/mind-maps" icon={Network} label="Mind Maps" count={mindMapsCount} /> {/* Add isActive later */}
+                        <NavItem href="/flashcards" icon={Layers3} label="Flashcards" count={flashcardsCount} /> {/* Add isActive later */}
+                        <NavItem href="/quizzes" icon={CheckSquare} label="Quizzes" count={quizzesCount} /> {/* Add isActive later */}
 
                         {/* Folders Section */}
                         <div className="pt-4">
@@ -152,7 +261,7 @@ function Sidebar() {
                                     variant="ghost" 
                                     size="icon" 
                                     className="h-6 w-6" 
-                                    onClick={() => setIsCreateFolderOpen(true)} // Set state to true
+                                    onClick={() => setIsCreateFolderOpen(true)}
                                 >
                                     <Plus className="h-4 w-4" />
                                     <span className="sr-only">New Folder</span>
@@ -175,27 +284,28 @@ function Sidebar() {
                                         </AlertDescription>
                                     </Alert>
                                 )}
-                                {!isLoading && !isError && folders && (
-                                    <FolderList folders={folders} />
-                                )}
+                                {!isLoading && !isError && folders && 
+                                    <FolderList 
+                                        folders={folders} 
+                                        activeFolderId={activeFolderId}
+                                    />
+                                }
                             </div>
+                        </div>
+
+                         {/* Favorites Section */}
+                        <div className="pt-4">
+                            <NavItem href="/notes/favorites" icon={Star} label="Favorites" isActive={isNotesFavoritesActive} />
+                        </div>
+
+                        {/* Settings Footer */}
+                        <div className="mt-auto pt-4"> 
+                            {/* <NavItem href="/settings" icon={Settings} label="Settings" /> */}
                         </div>
                     </nav>
                 </div>
-                {/* Optional Bottom Section (Favorites, Settings) */}
-                <div className="mt-auto border-t p-4">
-                     <nav className="space-y-1">
-                        <NavItem href="/favorites" icon={Star} label="Favorites" isActive={currentPath === '/favorites'} />
-                        <NavItem href="/settings" icon={Settings} label="Settings" isActive={currentPath === '/settings'} />
-                    </nav>
-                </div>
             </aside>
-
-            {/* Render the Dialog component outside the aside */}
-            <CreateFolderDialog 
-                isOpen={isCreateFolderOpen} 
-                onOpenChange={setIsCreateFolderOpen} 
-            />
+            <CreateFolderDialog isOpen={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen} />
         </>
     );
 }

@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 *   Resolved TypeScript module resolution errors for `@server/*` imports in the backend.
 *   Corrected Express route handler return type linting errors.
+*   Corrected layout of folder items in the Sidebar (`Sidebar.tsx`) to ensure the note count is always aligned to the right, consistent with other navigation items. This involved adjusting the flex layout and positioning of the expand/collapse button.
 
 ### Removed
 

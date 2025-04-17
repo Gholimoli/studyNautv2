@@ -277,7 +277,8 @@ This document provides a comprehensive listing of all API endpoints in the Study
     "title": "string", (optional)
     "markdownContent": "string", (optional)
     "htmlContent": "string", (optional)
-    "favorite": boolean (optional)
+    "favorite": boolean, (optional)
+    "folderId": number | null (optional)
   }
   ```
 - **Response:**

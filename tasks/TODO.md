@@ -74,3 +74,30 @@
 - [ ] **Performance Optimization:** Identify and address any performance bottlenecks.
 - [ ] **Testing:** Add more comprehensive tests (unit, integration, e2e).
 - [ ] **Dark Mode.**
+
+## Frontend
+
+*   [x] Fix NoteCard rendering issues (layout, click handlers)
+*   [x] Fix NoteCard favorite button functionality (visual state)
+*   [x] Ensure NoteFolderMenu closes after moving note
+*   [ ] Connect Sidebar "Favorites" link to filter NotesIndexPage (show `isFavorite: true` notes)
+*   [ ] Implement actual API calls (replace placeholders in NotesIndexPage, NoteCard, NoteFolderMenu)
+*   [x] Add UI for creating/managing user folders (sidebar)
+*   [x] **Fix Sidebar folder item layout to match NavItem layout**
+*   [ ] **Create Folder Detail Page/View (`/folders/:folderId`)**
+*   [x] **Make Sidebar folder names link to Folder Detail Page**
+*   [ ] **Verify notes disappear from list view after being moved out of scope**
+
+## Backend
+
+*   [ ] Ensure new notes default to `folderId: null` during creation (e.g., in `ASSEMBLE_NOTE` job)
+*   [ ] **Fix `/api/folders` endpoint to return accurate `noteCount` after refetch.**
+*   [ ] **Ensure `/api/notes` endpoint supports filtering by `folderId`**
+*   [ ] Implement actual API endpoints (auth, notes, folders, etc.) based on `api-endpoint.mdc`
+*   [ ] Implement database migrations for folders table (if not already done)
+*   [ ] Investigate potential bug in folder creation API/logic causing phantom folders.
+
+## General
+
+*   [ ] Refine UI/UX based on feedback
+*   [ ] Add comprehensive tests

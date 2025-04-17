@@ -216,6 +216,83 @@ toast({
 <Skeleton className="h-12 w-full rounded-md" />
 ```
 
+### 2.5. Dropdown Menus (Standard Action Pattern)
+
+For actions related to specific items (like notes, folders), use the `DropdownMenu` component. For complex actions involving sub-options (like moving to a folder) or asynchronous operations, follow this standard pattern exemplified by `NoteFolderMenu`:
+
+1.  **State Control:** Use `React.useState` to manage the open/closed state of both the main menu (`isMenuOpen`) and any sub-menus (`isSubMenuOpen`). Connect these state variables to the `open` and `onOpenChange` props of `DropdownMenu` and `DropdownMenuSub`.
+2.  **Conditional Data Fetching:** If a sub-menu needs data (e.g., a list of folders), use `useQuery` with the `enabled: isSubMenuOpen` option. This ensures data is fetched only when the user opens the relevant sub-menu, optimizing performance.
+3.  **Loading States:** Provide clear visual feedback for loading states within menu items using icons like `Loader2` from `lucide-react`.
+4.  **Mutation Handling:** Trigger mutations (`useMutation`) from `DropdownMenuItem`'s `onClick` handlers.
+5.  **Automatic Closing:** In the `onSuccess` callback of mutations triggered by menu items, explicitly set the menu state variable(s) to `false` (e.g., `setIsMenuOpen(false); setIsSubMenuOpen(false);`) to close the menu automatically upon successful completion of the action.
+6.  **Portals:** Use `DropdownMenuPortal` for sub-menu content (`DropdownMenuSubContent`) to ensure it renders correctly in the DOM hierarchy, avoiding potential clipping or z-index issues.
+
+**Example Snippet (`NoteFolderMenu.tsx` structure):**
+
+```tsx
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DropdownMenu, DropdownMenuTrigger, ..., DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from "@/components/ui/dropdown-menu";
+import { Loader2, ... } from "lucide-react";
+
+// ... Interfaces ...
+
+export function StandardActionMenu({ item }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSubMenuOpen, setIsSubMenuOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Example: Fetch data for sub-menu only when open
+  const { data: subMenuData, isLoading } = useQuery({
+    queryKey: ['sub-menu-data', item.id],
+    queryFn: fetchSubMenuData,
+    enabled: isSubMenuOpen, 
+  });
+
+  // Example: Mutation triggered by menu item
+  const moveItemMutation = useMutation({
+    mutationFn: moveItemApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      // Close menus on success
+      setIsSubMenuOpen(false);
+      setIsMenuOpen(false); 
+      // ... show toast ...
+    },
+    // ... onError ...
+  });
+
+  return (
+    <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+      <DropdownMenuTrigger asChild>
+        {/* ... Trigger Button ... */}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {/* ... Other Items ... */}
+        <DropdownMenuSub open={isSubMenuOpen} onOpenChange={setIsSubMenuOpen}>
+          <DropdownMenuSubTrigger disabled={moveItemMutation.isPending}>
+            {moveItemMutation.isPending ? <Loader2 /> : <Icon />} Move...
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              {isLoading ? <Loader2 /> : 
+                subMenuData?.map((option) => (
+                  <DropdownMenuItem key={option.id} onClick={() => moveItemMutation.mutate({ itemId: item.id, targetId: option.id })}>
+                    {/* ... Option Content ... */}
+                  </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+        {/* ... Other Items ... */}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+This pattern provides a robust and user-friendly way to handle multi-step actions within dropdown menus.
+
 ## 3. Layout Guidelines
 
 ### 3.1. Page Structure

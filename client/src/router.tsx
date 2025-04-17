@@ -113,12 +113,28 @@ const notesIndexRoute = createRoute({
   beforeLoad: ensureUserIsAuthenticated, // Corrected property name
 });
 
+// Notes favorites route - Protected
+const notesFavoritesRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/notes/favorites', 
+  component: NotesIndexPage, // Reuse the same component
+  beforeLoad: ensureUserIsAuthenticated,
+});
+
 // Note detail route - Protected
 const noteDetailRoute = createRoute({ 
   getParentRoute: () => rootRoute,
   path: '/notes/$noteId', 
   component: NoteDetailPage, 
   beforeLoad: ensureUserIsAuthenticated, // Corrected property name
+});
+
+// Folder detail route - Protected
+const folderDetailRoute = createRoute({ 
+  getParentRoute: () => rootRoute,
+  path: '/folders/$folderId', // Use $ for path parameters
+  component: NotesIndexPage, // Reuse the same component
+  beforeLoad: ensureUserIsAuthenticated,
 });
 
 // --- Build Route Tree --- 
@@ -128,7 +144,9 @@ const routeTree = rootRoute.addChildren([
   loginRoute,     // Path: '/login'
   registerRoute,  // Path: '/register'
   notesIndexRoute,// Path: '/notes'
-  noteDetailRoute // Path: '/notes/$noteId'
+  notesFavoritesRoute, // Path: '/notes/favorites'
+  noteDetailRoute, // Path: '/notes/$noteId'
+  folderDetailRoute // Path: '/folders/$folderId'
 ]);
 
 // Create the router instance
