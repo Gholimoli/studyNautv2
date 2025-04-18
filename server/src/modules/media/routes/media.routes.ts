@@ -8,6 +8,7 @@ import os from 'os';
 import { db } from '@/core/db';
 import { sources } from '@/core/db/schema';
 import { noteProcessingQueue } from '@/core/jobs/queue';
+import { JobType } from '@/core/jobs/job.definition'; // Ensure JobType is imported if needed later
 
 // --- Async Handler Utility ---
 const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
@@ -16,10 +17,11 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
   };
 // --- End Async Handler Utility ---
 
-// --- Multer Configuration for Audio Uploads ---
-const MAX_AUDIO_SIZE_MB = 100; // Adjust as needed
-const MAX_AUDIO_SIZE_BYTES = MAX_AUDIO_SIZE_MB * 1024 * 1024;
-const ALLOWED_AUDIO_MIMETYPES = [
+// --- Multer Configuration for File Uploads (Audio & PDF) ---
+const MAX_FILE_SIZE_MB = 100; // Shared limit for now
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_MIMETYPES = [
+  // Audio types
   'audio/mpeg', // .mp3
   'audio/wav',  // .wav
   'audio/wave',
@@ -28,18 +30,24 @@ const ALLOWED_AUDIO_MIMETYPES = [
   'audio/aac',  // .aac
   'audio/webm', // .webm (often audio/video, but can be audio)
   'audio/mp4',  // .mp4, .m4a (can be audio-only)
-  'audio/x-m4a', // Added for M4A files
-  // Add more as needed based on ElevenLabs/OpenAI support
+  'audio/x-m4a',
+  // PDF type
+  'application/pdf', // .pdf
+  // Image types
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  // Add other image types if needed (e.g., 'image/gif')
 ];
 
 const upload = multer({
   dest: os.tmpdir(), // Store temporarily first
-  limits: { fileSize: MAX_AUDIO_SIZE_BYTES },
+  limits: { fileSize: MAX_FILE_SIZE_BYTES },
   fileFilter: (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
-    if (ALLOWED_AUDIO_MIMETYPES.includes(file.mimetype)) {
+    if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`Invalid file type: ${file.mimetype}. Only audio files are allowed.`));
+      cb(new Error(`Invalid file type: ${file.mimetype}. Only specific audio and PDF files are allowed.`));
     }
   },
 });
@@ -53,9 +61,37 @@ router.use(ensureAuthenticated);
 // Wrap async handler for /text
 router.post('/text', asyncHandler(mediaController.processText));
 
-// POST /api/media/upload for audio files
-// Ensure Multer middleware runs first, then the controller method
-router.post('/upload', upload.single('file'), asyncHandler(mediaController.uploadAudio));
+// POST /api/media/upload for audio/PDF files
+router.post(
+    '/upload', 
+    (req: Request, res: Response, next: NextFunction) => {
+        console.log(`[Route /upload] Request received. Headers:`, req.headers);
+        console.log(`[Route /upload] Content-Type: ${req.get('content-type')}`);
+        next(); // Pass control to the next middleware (Multer)
+    },
+    upload.single('file'), // Multer middleware
+    (req: Request, res: Response, next: NextFunction) => {
+        console.log(`[Route /upload] After Multer. req.file exists: ${!!req.file}`);
+        if (req.file) {
+            console.log(`[Route /upload] req.file details:`, { 
+                fieldname: req.file.fieldname, 
+                originalname: req.file.originalname, 
+                mimetype: req.file.mimetype, 
+                size: req.file.size, 
+                path: req.file.path 
+            });
+        }
+        if (!req.file) {
+             console.warn('[Route /upload] req.file is MISSING after Multer ran!');
+        }
+        next(); // Pass control to the asyncHandler and controller
+    },
+    asyncHandler(mediaController.handleFileUpload)
+); 
+
+// POST /api/media/pdf-url
+// Uses the specific processPdfUrl controller method
+router.post('/pdf-url', asyncHandler(mediaController.processPdfUrl)); 
 
 // POST /api/media/youtube
 router.post('/youtube', asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
@@ -84,7 +120,7 @@ router.post('/youtube', asyncHandler(async (req: Request, res: Response, next: N
       throw new Error('Failed to insert source record into database.');
     }
     const sourceId = insertedSources[0].id;
-    await noteProcessingQueue.add('PROCESS_YOUTUBE_TRANSCRIPTION', { sourceId });
+    await noteProcessingQueue.add(JobType.PROCESS_AUDIO_TRANSCRIPTION, { sourceId });
     res.status(201).json({
       sourceId,
       message: 'YouTube video submitted successfully. Transcript extraction and note generation have started.'

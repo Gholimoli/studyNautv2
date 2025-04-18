@@ -20,6 +20,7 @@ import {
 // Remove file-type import - not needed with new signature
 // import { fileTypeFromBuffer } from 'file-type';
 import FormData from 'form-data'; // Keep for potential direct buffer upload? Or remove if only using data_uri/file_url
+import type { MistralOcrResponse as MistralOcrResponseType } from './mistral.utils'; // Keep response type import
 
 const MISTRAL_API_BASE_URL = 'https://api.mistral.ai/v1';
 
@@ -45,9 +46,9 @@ export class MistralOcrProvider implements IOcrProvider {
   async process(
     fileBuffer: Buffer,
     metadata: { originalname: string; mimetype: string },
-    type: 'pdf' | 'image' // Type parameter might be redundant if we rely on mimetype
-  ): Promise<OcrResult | null> { // Return null on failure as per interface possibility
-    logger.info('MistralOcrProvider: Starting OCR process...', { filename: metadata.originalname, mimetype: metadata.mimetype, type });
+    type: 'pdf' | 'image' // Type might be redundant now
+  ): Promise<OcrResult | null> {
+    logger.info('MistralOcrProvider: Starting OCR process...', { filename: metadata.originalname, mimetype: metadata.mimetype });
 
     // Validate buffer size
     if (fileBuffer.byteLength > this.maxFileSize) {
@@ -56,15 +57,14 @@ export class MistralOcrProvider implements IOcrProvider {
     }
 
     try {
-        // Mistral API prefers data_uri for images and file_url for PDFs
-        // Let's try using data_uri for images directly
-        if (metadata.mimetype.startsWith('image/')) {
+        // Use direct buffer for PDF, data_uri for images
+        if (metadata.mimetype === 'application/pdf') {
+            logger.info('Processing PDF buffer via direct API call...');
+            const ocrResponse = await this.callMistralOcrWithBuffer(fileBuffer, 'application/pdf');
+            return this.formatResult(ocrResponse);
+        } else if (metadata.mimetype.startsWith('image/')) {
             logger.info('Processing image buffer via data URI...');
             return await this.processImageBuffer(fileBuffer, metadata.mimetype);
-        } else if (metadata.mimetype === 'application/pdf') {
-            logger.info('Processing PDF buffer via file upload flow...');
-            // Need to write buffer to a temp file to use the existing upload/URL flow
-            return await this.processPdfBuffer(fileBuffer, metadata.originalname);
         } else {
             logger.error('MistralOcrProvider: Unsupported mime type provided', { mimetype: metadata.mimetype });
             throw new AppError(
@@ -73,32 +73,24 @@ export class MistralOcrProvider implements IOcrProvider {
             );
         }
     } catch (error) {
-        logger.error('Error during Mistral OCR processing', { filename: metadata.originalname, error });
-        // Return null or rethrow AppError based on desired handling
-         if (error instanceof AppError) {
-             throw error; // Rethrow known AppErrors
-         } else {
-            // Log unexpected errors but potentially return null as per interface? Or throw generic AppError?
-            // Let's throw for now to indicate failure clearly.
-             throw new AppError(
-                 'OCR Processing Error',
-                 `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`
-             );
-         }
-         // return null; // Alternative: return null on failure
+        logger.error('Error during Mistral OCR processing, returning null to allow fallback.', {
+          filename: metadata.originalname,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Return null to signal failure and allow OcrService to try the fallback provider.
+        return null;
     }
   }
 
-  // Central method to call the Mistral OCR endpoint
-  private async callMistralOcr(
+  // Renamed: Central method to call the Mistral OCR endpoint with JSON PAYLOAD
+  private async callMistralOcrWithPayload(
     payload: { file_url?: string; data_uri?: string }
-  ): Promise<MistralOcrResponse> {
+  ): Promise<MistralOcrResponseType> {
     try {
-      logger.info('Calling Mistral /ocr endpoint...', { model: this.modelId, hasUrl: !!payload.file_url, hasDataUri: !!payload.data_uri });
-      const response = await axios.post<MistralOcrResponse>(
+      logger.info('Calling Mistral /ocr endpoint with JSON payload...', { model: this.modelId, hasUrl: !!payload.file_url, hasDataUri: !!payload.data_uri });
+      const response = await axios.post<MistralOcrResponseType>(
         `${MISTRAL_API_BASE_URL}/ocr`,
-        // Include model ID if the API supports it in the payload
-        { ...payload, model: this.modelId },
+        { ...payload, model: this.modelId }, // Include model ID
         {
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
@@ -108,26 +100,28 @@ export class MistralOcrProvider implements IOcrProvider {
           timeout: 300000, // 5 minutes timeout
         }
       );
-      logger.info('Mistral OCR call successful.');
+      logger.info('Mistral OCR call with payload successful.');
       return response.data;
     } catch (error: unknown) {
-        logger.error('Mistral OCR API call failed', { error });
+        logger.error('Mistral OCR API call with payload failed', { error });
         // Keep existing detailed error handling
         if (axios.isAxiosError(error)) {
-            const axiosError = error as AxiosError<{ message?: string } | string>;
-            const errorMessage = typeof axiosError.response?.data === 'object' && axiosError.response.data?.message
-                                ? axiosError.response.data.message
-                                : typeof axiosError.response?.data === 'string'
-                                ? axiosError.response.data
+            const axiosError = error as AxiosError<{ message?: string; detail?: any } | string>; // Add optional detail field
+            const responseData = axiosError.response?.data;
+            const errorMessage = typeof responseData === 'object' && responseData?.message
+                                ? responseData.message
+                                : typeof responseData === 'string'
+                                ? responseData
                                 : axiosError.message;
+            // Log the full response data for more details, especially for 422 errors
             logger.error('Mistral OCR Error Details:', {
                 status: axiosError.response?.status,
-                data: axiosError.response?.data,
+                data: JSON.stringify(responseData, null, 2), // Stringify data for better logging
                 message: errorMessage,
             });
             throw new AppError(
                 'OCR Provider Error',
-                `Mistral API request failed (${axiosError.response?.status}): ${errorMessage}`
+                `Mistral API request failed (${axiosError.response?.status || 'Unknown Status'}): ${errorMessage}`
             );
         } else {
             throw new AppError(
@@ -138,90 +132,57 @@ export class MistralOcrProvider implements IOcrProvider {
     }
   }
 
-  // Refactored to handle PDF buffer by writing to temp file
-  private async processPdfBuffer(fileBuffer: Buffer, originalFilename: string): Promise<OcrResult> {
-    let tempFilePath: string | null = null;
-    let uploadedFile: MistralFile | null = null;
+  // NEW: Method to call Mistral OCR endpoint with raw file BUFFER
+  private async callMistralOcrWithBuffer(
+    fileBuffer: Buffer,
+    mimeType: string
+  ): Promise<MistralOcrResponseType> {
     try {
-      // 1. Create a temporary file from the buffer
-      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'studynaut-ocr-pdf-'));
-      // Use a safe filename, maybe based on original or UUID
-      const safeFilename = originalFilename.replace(/[^a-zA-Z0-9.]/g, '_') || `${uuidv4()}.pdf`;
-      tempFilePath = path.join(tempDir, safeFilename);
-      await fs.writeFile(tempFilePath, fileBuffer);
-      logger.info(`Created temporary PDF file: ${tempFilePath}`);
-
-      // 2. Upload the temporary file using the utility function
-      logger.info(`Uploading temporary PDF file to Mistral...`);
-      uploadedFile = await uploadFile(tempFilePath, this.apiKey);
-      if (!uploadedFile) {
-        throw new AppError('OCR Provider Error', 'Failed to upload PDF file to Mistral.');
-      }
-      logger.info(`PDF file uploaded successfully: ID ${uploadedFile.id}`);
-
-      // 3. Get the signed URL using the utility function
-      logger.info(`Getting signed URL for file ID ${uploadedFile.id}...`);
-      const signedUrlData = await getSignedUrl(uploadedFile.id, this.apiKey);
-      if (!signedUrlData?.url) {
-        throw new AppError(
-          'OCR Provider Error',
-          'Failed to get signed URL from Mistral for PDF.'
-        );
-      }
-      logger.info(`Got signed URL successfully for PDF.`);
-
-      // 4. Call the Mistral OCR endpoint with the signed URL
-      const ocrResponse = await this.callMistralOcr({ file_url: signedUrlData.url });
-
-      // 5. Format and return the result
-      return this.formatResult(ocrResponse);
-
+      logger.info('Calling Mistral /ocr endpoint with raw buffer...', { model: this.modelId, mimeType: mimeType, size: fileBuffer.length });
+      const response = await axios.post<MistralOcrResponseType>(
+        `${MISTRAL_API_BASE_URL}/ocr`,
+        fileBuffer, // Send buffer directly as request body
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': mimeType, // Set correct Content-Type for the file
+            Accept: 'application/json',
+            // Consider adding model ID via header if API supports it, e.g.:
+            // 'X-Mistral-Model-Id': this.modelId 
+          },
+          timeout: 300000, // 5 minutes timeout
+          // Ensure Axios sends buffer correctly (usually default, but check if issues)
+          // transformRequest: [(data, headers) => data], 
+        }
+      );
+      logger.info('Mistral OCR call with buffer successful.');
+      return response.data;
     } catch (error: unknown) {
-        logger.error('Error during Mistral PDF buffer processing', { error, originalFilename });
-        // Re-throw error after potential cleanup attempt
-        if (error instanceof AppError) {
-            throw error;
+       // Reuse the same detailed error handling as the payload method
+        logger.error('Mistral OCR API call with buffer failed', { error });
+        if (axios.isAxiosError(error)) {
+            const axiosError = error as AxiosError<{ message?: string; detail?: any } | string>;
+            const responseData = axiosError.response?.data;
+            const errorMessage = typeof responseData === 'object' && responseData?.message ? responseData.message : typeof responseData === 'string' ? responseData : axiosError.message;
+            logger.error('Mistral OCR Error Details:', { status: axiosError.response?.status, data: JSON.stringify(responseData, null, 2), message: errorMessage });
+            throw new AppError('OCR Provider Error', `Mistral API request failed (${axiosError.response?.status || 'Unknown Status'}): ${errorMessage}`);
         } else {
-            throw new AppError(
-                'OCR Processing Error',
-                `An unexpected error occurred during PDF processing: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
+            throw new AppError('OCR Provider Error', `An unexpected error occurred during Mistral OCR call: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    } finally {
-      // Cleanup is crucial for temp files
-      if (uploadedFile?.id) {
-        // Don't await deleteFile here, let it run in background potentially
-        deleteFile(uploadedFile.id, this.apiKey);
-      }
-      if (tempFilePath) {
-        try {
-          const tempDir = path.dirname(tempFilePath);
-          await fs.rm(tempDir, { recursive: true, force: true });
-          logger.info(`Cleaned up temporary PDF directory: ${tempDir}`);
-        } catch (cleanupError) {
-          logger.warn(`Failed to clean up temporary PDF file/directory: ${tempFilePath}`, {
-            error: cleanupError,
-          });
-        }
-      }
     }
   }
 
-  // New method to handle image buffer using data URI
+  // REMAINS: Method to handle image buffer using data URI
   private async processImageBuffer(
     fileBuffer: Buffer,
     mimeType: string
   ): Promise<OcrResult> {
     try {
-        // Construct the data URI
         const base64Data = fileBuffer.toString('base64');
         const dataUri = `data:${mimeType};base64,${base64Data}`;
         logger.info('Prepared data URI for Mistral image OCR.');
-
-        // Call the Mistral OCR endpoint with the data URI
-        const ocrResponse = await this.callMistralOcr({ data_uri: dataUri });
-
-        // Format and return the result
+        // Use the payload method for data_uri
+        const ocrResponse = await this.callMistralOcrWithPayload({ data_uri: dataUri });
         return this.formatResult(ocrResponse);
     } catch (error: unknown) {
       logger.error('Error during Mistral image buffer processing', { mimeType, error });
@@ -237,7 +198,7 @@ export class MistralOcrProvider implements IOcrProvider {
   }
 
   // Helper to format the Mistral response into the standard OcrResult
-  private formatResult(mistralResponse: MistralOcrResponse): OcrResult {
+  private formatResult(mistralResponse: MistralOcrResponseType): OcrResult {
     // Basic check if response structure is valid
     if (!mistralResponse || !Array.isArray(mistralResponse.pages)) {
         logger.error('Invalid Mistral OCR response structure received', { response: mistralResponse });

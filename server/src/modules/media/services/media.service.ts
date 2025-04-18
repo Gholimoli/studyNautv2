@@ -1,13 +1,14 @@
 import { db } from '@/core/db';
 import { sources } from '@/core/db/schema';
-import { ProcessTextDto } from '../types/media.schemas';
+import { ProcessTextDto, ProcessPdfUrlDto } from '../types/media.schemas';
 import { noteProcessingQueue } from '@/core/jobs/queue';
-import { JobType } from '@/core/jobs/job.definition';
+import { JobType, JobName } from '@/core/jobs/job.definition';
 import { eq } from 'drizzle-orm';
 import { storageService } from '@/core/services/storage.service'; // Import StorageService
 import * as fs from 'fs/promises'; // Import fs promises for deletion
 import path from 'path'; // Import path for filename handling
 import { francAll } from 'franc-all'; // Import language detection library
+import { z } from 'zod'; // Added Zod for URL validation
 // import { iso6393To1 } from '@/lib/utils/language-codes'; // No longer needed for mapping
 
 // Define a basic user type expected from req.user (Passport)
@@ -80,104 +81,179 @@ export class MediaService {
   }
 
   /**
-   * Handles processing of an uploaded audio file.
-   * Uploads to Supabase, creates source record, and queues transcription job.
-   * @param file The uploaded file object (containing path, originalname, mimetype).
+   * Handles processing of an uploaded file (Audio or PDF).
+   * Uploads to storage, creates source record, and queues the appropriate processing job.
+   * @param file The uploaded file object.
    * @param user The authenticated user.
-   * @param languageCode Optional language code for transcription.
+   * @param languageCode Optional language code (primarily for audio transcription).
    * @returns The result containing the new source ID.
    */
-  async createSourceFromAudioUpload(file: UploadedFile, user: AuthenticatedUser, languageCode?: string) {
-    console.log(`[MediaService] Processing audio upload for user ${user.id}: ${file.originalname}. Provided language code: ${languageCode || 'None'}`);
+  async createSourceFromFileUpload(file: UploadedFile, user: AuthenticatedUser, languageCode?: string) {
+    console.log(`[MediaService] Processing file upload for user ${user.id}: ${file.originalname}, Type: ${file.mimetype}. Provided language code: ${languageCode || 'None'}`);
     let storagePath: string | null = null;
+    let sourceType: 'AUDIO' | 'PDF' | 'IMAGE'; // Determine source type
+    let jobToEnqueue: JobName;
+    let jobPayload: { sourceId: number, [key: string]: any } = { sourceId: 0 }; // Initialize with placeholder
 
-    // Use provided language code or default to 'eng' (ISO 639-3)
+    // Determine source type and job based on mimetype
+    if (file.mimetype.startsWith('audio/')) {
+      sourceType = 'AUDIO';
+      jobToEnqueue = JobType.PROCESS_AUDIO_TRANSCRIPTION;
+    } else if (file.mimetype === 'application/pdf') {
+      sourceType = 'PDF';
+      jobToEnqueue = JobType.PROCESS_PDF; 
+    } else if (file.mimetype.startsWith('image/')) {
+      sourceType = 'IMAGE';
+      jobToEnqueue = JobType.PROCESS_IMAGE; 
+    } else {
+      // Now only rejects truly unsupported types
+      await fs.unlink(file.path); // Clean up temp file
+      throw new Error(`Unsupported file type: ${file.mimetype}`);
+    }
+
+    // Use provided language code or default to 'eng' (ISO 639-3) - Primarily for Audio
+    // PDF language detection happens in its dedicated job
     const finalLanguageCode = languageCode || 'eng'; 
 
     try {
-      // 1. Construct storage path (e.g., user_123/audio/timestamp_filename.mp3)
+      // 1. Construct storage path (e.g., user_123/{audio|pdf|image}/timestamp_filename.ext)
       const timestamp = Date.now();
       const safeFilename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'); // Sanitize filename
-      storagePath = `user_${user.id}/audio/${timestamp}_${safeFilename}`;
+      let folder = 'unknown';
+      if (sourceType === 'AUDIO') folder = 'audio';
+      else if (sourceType === 'PDF') folder = 'pdf';
+      else if (sourceType === 'IMAGE') folder = 'images';
+
+      storagePath = `user_${user.id}/${folder}/${timestamp}_${safeFilename}`;
 
       // 2. Upload to Supabase Storage
+      console.log(`[MediaService] Uploading ${sourceType} to Supabase: ${storagePath}`);
       const uploadedPath = await storageService.uploadFile(
         file.path, // Local temporary path from multer
         storagePath,
         file.mimetype
       );
-
       if (!uploadedPath) {
         throw new Error('Storage service failed to return a path after upload.');
       }
-      
       console.log(`[MediaService] Successfully uploaded to Supabase: ${storagePath}`);
 
-       // 3. Delete local temporary file AFTER successful upload
-       try {
-         await fs.unlink(file.path);
-         console.log(`[MediaService] Deleted local temp file: ${file.path}`);
-       } catch (unlinkError) {
-         // Log deletion error but don't fail the whole process
-         console.error(`[MediaService] Failed to delete local temp file ${file.path}:`, unlinkError);
-       }
+      // 3. Delete local temporary file AFTER successful upload
+      try {
+        await fs.unlink(file.path);
+        console.log(`[MediaService] Deleted local temp file: ${file.path}`);
+      } catch (unlinkError) {
+        console.error(`[MediaService] Failed to delete local temp file ${file.path}:`, unlinkError);
+      }
 
       // 4. Create source record in DB
-      const newSource = await db.insert(sources).values({
+      const newSourceData: typeof sources.$inferInsert = {
         userId: user.id,
-        sourceType: 'AUDIO',
+        sourceType: sourceType,
         originalFilename: file.originalname,
         originalStoragePath: storagePath,
-        languageCode: finalLanguageCode, // Save to dedicated column
-        metadata: { storagePath }, // Keep storagePath in metadata for now, remove languageCode
         processingStatus: 'PENDING',
-      }).returning({
-        id: sources.id,
-      });
+        metadata: { storagePath }, // Keep storagePath in metadata for now
+      };
+
+      // Add language code only if it's relevant initially (i.e., for Audio)
+      if (sourceType === 'AUDIO') {
+          newSourceData.languageCode = finalLanguageCode;
+      } // PDF & Image language is determined later (or irrelevant for image)
+
+      const newSource = await db.insert(sources).values(newSourceData).returning({ id: sources.id });
 
       if (!newSource || newSource.length === 0) {
         throw new Error('Failed to create source record after upload');
       }
       const createdSource = newSource[0];
-      console.log(`[MediaService] Source record created for audio upload with ID: ${createdSource.id}`);
+      jobPayload.sourceId = createdSource.id; // Set the actual source ID
+      console.log(`[MediaService] Source record created for ${sourceType} upload with ID: ${createdSource.id}`);
 
-      // 5. Enqueue the transcription job
-      await noteProcessingQueue.add(JobType.PROCESS_AUDIO_TRANSCRIPTION, { 
-          sourceId: createdSource.id, 
-          audioFilePath: storagePath, // Pass Supabase path to job? Or let job fetch it?
-          // For now, let's assume the job needs the storage path to fetch the file later.
-          languageCode: finalLanguageCode // Pass the determined ISO 639-3 code
-      });
-      console.log(`[MediaService] Enqueued ${JobType.PROCESS_AUDIO_TRANSCRIPTION} job for source ID: ${createdSource.id}, Language: ${finalLanguageCode}`);
+      // Add language code to payload if it's an audio job
+      if (jobToEnqueue === JobType.PROCESS_AUDIO_TRANSCRIPTION) {
+          jobPayload.languageCode = finalLanguageCode;
+      }
+
+      // 5. Enqueue the appropriate job
+      await noteProcessingQueue.add(jobToEnqueue, jobPayload);
+      console.log(`[MediaService] Enqueued ${jobToEnqueue} job for source ID: ${createdSource.id}${sourceType === 'AUDIO' ? ', Language: ' + finalLanguageCode : ''}`);
 
       return {
         sourceId: createdSource.id,
-        message: "Audio file uploaded successfully, transcription initiated."
+        message: `${sourceType} file uploaded successfully, processing initiated.`
       };
 
     } catch (error) {
-      console.error(`[MediaService] Error processing audio upload for user ${user.id}:`, error);
+      console.error(`[MediaService] Error processing ${sourceType || 'file'} upload for user ${user.id}:`, error);
       
-      // Cleanup attempt: If upload succeeded but DB/queue failed, try deleting from Supabase
+      // Cleanup attempt: Delete storage file and local temp file
       if (storagePath) {
           console.warn(`[MediaService] Attempting to clean up Supabase file due to error: ${storagePath}`);
-          await storageService.deleteFile(storagePath); 
+          try { await storageService.deleteFile(storagePath); } catch (e) { console.error('[MediaService] Error cleaning storage file:', e);}
       }
-      // Also ensure local file is deleted if it wasn't already
       try {
-         // Simply attempt to delete the file
          await fs.unlink(file.path);
          console.log(`[MediaService] Deleted local temp file during error cleanup: ${file.path}`);
       } catch (cleanupError: any) {
-         // Ignore ENOENT errors (file already deleted or never existed), log others
          if (cleanupError.code !== 'ENOENT') { 
             console.error(`[MediaService] Error during local file cleanup after error:`, cleanupError);
          }
       }
 
-      // Re-throw a user-friendly error or handle specific errors
-      throw new Error(`Failed to process audio upload: ${(error as Error).message}`);
+      throw new Error(`Failed to process ${sourceType || 'file'} upload: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Creates a Source record for a PDF from a URL and queues it for processing.
+   * @param data Object containing the PDF URL.
+   * @param user The authenticated user.
+   * @returns The result containing the new source ID.
+   */
+  async createSourceFromPdfUrl(data: ProcessPdfUrlDto, user: AuthenticatedUser) {
+    console.log(`[MediaService] Processing PDF URL for user ${user.id}: ${data.url}`);
+
+    // Basic URL validation (can be enhanced)
+    try {
+        z.string().url().parse(data.url); 
+    } catch (validationError) {
+        throw new Error('Invalid URL provided.');
+    }
+
+    // Create source record
+    const newSource = await db.insert(sources).values({
+      userId: user.id,
+      sourceType: 'PDF',
+      originalUrl: data.url, // Store the URL
+      processingStatus: 'PENDING',
+      metadata: { originalUrl: data.url }, // Include URL in metadata too for consistency
+    }).returning({
+      id: sources.id,
+    });
+
+    if (!newSource || newSource.length === 0) {
+      throw new Error('Failed to create source record for PDF URL');
+    }
+    const createdSource = newSource[0];
+    console.log(`[MediaService] Source record created for PDF URL with ID: ${createdSource.id}`);
+
+    // Enqueue the PDF processing job
+    try {
+      await noteProcessingQueue.add(JobType.PROCESS_PDF, { sourceId: createdSource.id });
+      console.log(`[MediaService] Enqueued ${JobType.PROCESS_PDF} job for source ID: ${createdSource.id}`);
+    } catch (queueError) {
+        console.error(`[MediaService] Failed to enqueue PDF processing job for source ID: ${createdSource.id}`, queueError);
+        await db.update(sources)
+          .set({ processingStatus: 'FAILED', processingError: 'Failed to enqueue PDF processing job' })
+          .where(eq(sources.id, createdSource.id)); 
+        throw new Error('Failed to start PDF processing after saving source.');
+    }
+
+    return {
+      sourceId: createdSource.id,
+      message: "PDF URL received, processing initiated."
+    };
   }
 
 }

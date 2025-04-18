@@ -103,7 +103,27 @@ class AiService {
     }
 
     try {
-      const parsedJson = JSON.parse(response.content);
+      // --- Clean potential markdown fences --- 
+      let contentToParse = response.content.trim();
+      const jsonFenceStart = '```json';
+      const jsonFenceEnd = '```';
+
+      if (contentToParse.startsWith(jsonFenceStart) && contentToParse.endsWith(jsonFenceEnd)) {
+        console.log('[AiService] Removing JSON markdown fences for lesson structure...');
+        contentToParse = contentToParse.substring(jsonFenceStart.length, contentToParse.length - jsonFenceEnd.length).trim();
+      } else if (contentToParse.startsWith('```') && contentToParse.endsWith('```')) {
+        // Handle generic fences just in case
+        console.log('[AiService] Removing generic markdown fences for lesson structure...');
+        contentToParse = contentToParse.substring(3, contentToParse.length - 3).trim();
+      }
+      // --- End cleaning ---
+
+      if (!contentToParse) {
+          console.error('[AiService] Content is empty after stripping fences for lesson structure.');
+          return null;
+      }
+
+      const parsedJson = JSON.parse(contentToParse);
       const validatedData = aiStructuredContentSchema.safeParse(parsedJson);
       
       if (!validatedData.success) {
@@ -148,7 +168,27 @@ class AiService {
     }
 
     try {
-      const parsedJson = JSON.parse(response.content);
+      // --- Clean potential markdown fences --- 
+      let contentToParse = response.content.trim();
+      const jsonFenceStart = '```json';
+      const jsonFenceEnd = '```';
+
+      if (contentToParse.startsWith(jsonFenceStart) && contentToParse.endsWith(jsonFenceEnd)) {
+        console.log('[AiService] Removing JSON markdown fences for tags...');
+        contentToParse = contentToParse.substring(jsonFenceStart.length, contentToParse.length - jsonFenceEnd.length).trim();
+      } else if (contentToParse.startsWith('```') && contentToParse.endsWith('```')) {
+        // Handle generic fences just in case
+         console.log('[AiService] Removing generic markdown fences for tags...');
+        contentToParse = contentToParse.substring(3, contentToParse.length - 3).trim();
+      }
+       // --- End cleaning ---
+
+      if (!contentToParse) {
+          console.error('[AiService] Content is empty after stripping fences for tags.');
+          return [];
+      }
+
+      const parsedJson = JSON.parse(contentToParse);
       const validatedData = aiTagResponseSchema.safeParse(parsedJson);
       
       if (!validatedData.success) {

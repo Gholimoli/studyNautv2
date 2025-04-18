@@ -13,7 +13,12 @@ import { generateVisualJob } from '@/core/jobs/generateVisual.job';
 import { assembleNoteJob } from '@/core/jobs/assembleNote.job';
 import { processAudioTranscriptionJob } from '@/core/jobs/processAudioTranscription.job';
 import { processYouTubeTranscriptionJob } from '@/core/jobs/processYouTubeTranscription.job';
+import { processPdfJob } from '@/core/jobs/processPdf.job'; // Import the new PDF job processor
+import { processImageJob } from '@/core/jobs/processImage.job'; // Import the new image job processor
 // import { generateStudyToolsJob } from '@/core/jobs/generateStudyTools.job'; // Commented out - Phase 8 Task
+
+// Import JobType enum/const
+import { JobType } from '@/core/jobs/job.definition';
 
 // --- Configuration --- 
 const QUEUE_NAME = process.env.BULLMQ_QUEUE_NAME || 'note-processing';
@@ -48,27 +53,32 @@ const worker = new Worker(
   async (job: Job) => {
     console.log(`[Worker] Processing job ${job.name} (${job.id}) with data:`, job.data);
     try {
+      // Use JobType constants for comparison
       switch (job.name) {
-        // Add cases for your actual job names and call processors
-        case 'PROCESS_SOURCE_TEXT':
+        case JobType.PROCESS_SOURCE_TEXT:
           await processSourceTextJob(job);
           break;
-        case 'PROCESS_AUDIO_TRANSCRIPTION':
+        case JobType.PROCESS_AUDIO_TRANSCRIPTION:
           await processAudioTranscriptionJob(job);
           break;
-        case 'PROCESS_YOUTUBE_TRANSCRIPTION':
-          await processYouTubeTranscriptionJob(job);
-          break;
-        case 'PROCESS_VISUAL_PLACEHOLDERS':
+        case JobType.PROCESS_VISUAL_PLACEHOLDERS:
           await processVisualPlaceholdersJob(job);
           break;
-        case 'GENERATE_VISUAL':
+        case JobType.GENERATE_VISUAL:
           await generateVisualJob(job);
           break;
-        case 'ASSEMBLE_NOTE':
+        case JobType.ASSEMBLE_NOTE:
           await assembleNoteJob(job);
           break;
-        // case 'GENERATE_STUDY_TOOLS': // Commented out - Phase 8 Task
+        // Add case for PROCESS_PDF
+        case JobType.PROCESS_PDF:
+          await processPdfJob(job);
+          break;
+        // Add case for PROCESS_IMAGE
+        case JobType.PROCESS_IMAGE:
+          await processImageJob(job);
+          break;
+        // case JobType.GENERATE_STUDY_TOOLS: // Commented out - Phase 8 Task
         //   await generateStudyToolsJob(job);
         //   break;
         default:

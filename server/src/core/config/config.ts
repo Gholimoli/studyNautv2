@@ -18,8 +18,8 @@ const envSchema = z.object({
   VISUAL_AI_PROVIDER: z.enum(['gemini', 'serpapi']).optional().default('serpapi'), // Keep enum for this one for now
 
   // API Keys (Marked as optional here, but specific services might require them)
-  // Consider making them required if the corresponding provider is selected?
-  GOOGLE_API_KEY: z.string().optional(),
+  // Use GEMINI_API_KEY instead of GOOGLE_API_KEY
+  GEMINI_API_KEY: z.string().optional(), 
   OPENAI_API_KEY: z.string().optional(),
   MISTRAL_API_KEY: z.string().optional(),
   SERPAPI_API_KEY: z.string().optional(),
@@ -59,7 +59,7 @@ export const config = {
     primaryProvider: validatedEnv.PRIMARY_AI_PROVIDER,
     fallbackProvider: validatedEnv.FALLBACK_AI_PROVIDER,
     visualProvider: validatedEnv.VISUAL_AI_PROVIDER,
-    googleApiKey: validatedEnv.GOOGLE_API_KEY,
+    geminiApiKey: validatedEnv.GEMINI_API_KEY,
     openaiApiKey: validatedEnv.OPENAI_API_KEY,
     mistralApiKey: validatedEnv.MISTRAL_API_KEY,
     serpapiKey: validatedEnv.SERPAPI_API_KEY,
