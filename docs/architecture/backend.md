@@ -20,4 +20,14 @@
 
 *   Uses a centralized error handling middleware (`server/src/middleware/error.middleware.ts`).
 *   Custom `ApiError` class for consistent HTTP error responses.
-*   Zod used for input validation in route handlers. 
+*   Zod used for input validation in route handlers.
+
+### 3.4. OCR Module (`server/src/modules/ocr`)
+*   **Purpose:** Handles Optical Character Recognition (OCR) for images and PDFs.
+*   **Key Components:**
+    *   `ocr.service.ts`: Orchestrates OCR tasks, selects provider.
+    *   `ocr.controller.ts`: Defines API endpoint handlers (likely integrated into `media.controller`).
+    *   `providers/`: Contains implementations for different OCR providers (e.g., `mistral.provider.ts`).
+        *   Providers implement the `IOcrProvider` interface defined in `server/src/types/ocr.types.ts` (handling file buffers and metadata).
+    *   `ocr.utils.ts`: Helper functions for OCR tasks.
+*   **Interfaces:** `IOcrProvider`, `OcrResult` (shared). 

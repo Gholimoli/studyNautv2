@@ -25,7 +25,7 @@ This document summarizes critical insights and challenges encountered during the
 
 *   **Zod `optional().transform()`:** Be cautious when using `.optional().transform()` in Zod schemas, especially with boolean-like inputs (e.g., 'true'/'false'). The transform function still runs even if the field is optional and not present in the input, receiving `undefined` as its value. This can lead to unexpected default values (e.g., `undefined === 'true'` resulting in `false`) if not handled explicitly within the transform. Always check for `undefined` in the transform if the preceding `.optional()` is intended to mean "no value provided".
 *   **List vs. Detail Data Consistency:** Ensure that data required for list item displays (like `NoteCard`) is included in the data fetched for the list view (e.g., `NoteListItem` type and the corresponding API endpoint). Avoid relying solely on detail view data (`NoteDetail`) for information needed in summaries or list cards, as this can lead to missing information (e.g., `languageCode` initially missing from `GET /api/notes`).
-*   **Worker Restart Requirement:** **CRITICAL:** Changes made to the worker code (`worker.ts`) or its direct dependencies **do not take effect** until the worker Node.js process is manually restarted. This is a frequent source of confusion when debugging job logic. (Restart via `Ctrl+C` and `pnpm dev` locally).
+*   **Worker Process & Development Restarts:** The `pnpm dev` script in the `server` package uses `concurrently` to run both the API server (`dev:server`) and the BullMQ worker (`dev:worker`). Both of these sub-scripts utilize `nodemon`, which watches for file changes. Therefore, **changes made to worker code (`worker.ts`) or its dependencies *should* trigger an automatic restart of the worker process** during development when using `pnpm dev`. While generally reliable, if unexpected behavior occurs after code changes, manually restarting the `pnpm dev` process (`Ctrl+C` and run again) remains a valid troubleshooting step.
 *   **Debugging Asynchronous Flows:** Requires extensive logging (`console.log` in the worker is effective) and potentially inspecting the job queue state (e.g., via Redis CLI) and database records (`sources`, `visuals`, `notes` tables).
 *   **API/Schema Mismatches:** Discrepancies between frontend expectations (TanStack Query), API responses (Express routes), shared type definitions (`shared/` package or duplicated types), and database schemas (`schema.ts`) are common sources of bugs. Consistent use of shared types and end-to-end testing helps.
 *   **Environment Consistency:** Ensuring API keys and database URLs are correctly set up in `.env` files for both local development and deployment environments is crucial.
@@ -137,4 +137,23 @@ This document summarizes critical insights and challenges encountered during the
 
 *   Uncommented the `POST /login` route in `auth.routes.ts`.
 *   Configured Passport `LocalStrategy` with `{ usernameField: 'email' }` to match the frontend form data.
-*   Provided the `fetchAuthStatus` function explicitly as the `queryFn` when calling `queryClient.fetchQuery({ queryKey: ['authStatus'] })` in the `LoginPage` component's `onSuccess` handler for the login mutation. 
+*   Provided the `fetchAuthStatus` function explicitly as the `queryFn` when calling `queryClient.fetchQuery({ queryKey: ['authStatus'] })` in the `LoginPage` component's `onSuccess` handler for the login mutation.
+
+## 12. Configuration Validation & Usage
+
+### Insights
+
+*   **Startup Validation:** Implementing environment variable validation at startup (e.g., using Zod in `server/src/core/config/config.ts`) is crucial to prevent runtime errors caused by missing or invalid configuration (API keys, DB URLs, etc.).
+*   **Centralized Config Object:** Consistently using a central, validated `config` object throughout the application (server, worker, utilities) is better than accessing `process.env` directly in multiple places. It ensures that code relies on validated configuration values.
+
+### Challenges Faced
+
+*   **Initial Zod Schema Mismatch:** The initial Zod schema added for validation used restrictive enums for AI provider names (`gemini`, `openai`) instead of allowing the specific model strings (`gemini-2.0-flash`, `gpt-4o`) present in the `.env` file, causing a startup crash.
+    *   **Fix:** Modified the Zod schema in `config.ts` to accept `string` types for `PRIMARY_AI_PROVIDER` and `FALLBACK_AI_PROVIDER`.
+*   **Incorrect Config Access in Providers:** After introducing the central `config` object (which nested AI keys under `config.ai.*`), several provider/utility files (`gemini.provider.ts`, `openai.provider.ts`, `mistral.provider.ts`, `image-search.ts`, `elevenlabs.processor.ts`) were still trying to access keys directly from the top-level `config` or `process.env`, leading to runtime errors or potential crashes.
+    *   **Fix:** Updated all affected provider/utility files to import and use the validated `config` object and access the necessary API keys via the correct nested path (e.g., `config.ai.googleApiKey`, `config.ai.serpapiKey`).
+
+### Solutions Implemented
+
+*   Added Zod schema validation to `server/src/core/config/config.ts`.
+*   Refactored API provider files and utilities to import and use the validated `config` object instead of `process.env` directly. 

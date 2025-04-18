@@ -20,8 +20,9 @@ import {
     Globe
 } from "lucide-react";
 import { NoteFolderMenu } from '@/components/notes/NoteFolderMenu';
-import type { Tag } from '@/types/notes';
-import { useUpdateNote, NoteListItem as Note } from '@/hooks/useNotesQueries';
+import type { Tag } from '@shared/types/notes';
+import { useUpdateNote } from '@/hooks/useNotesQueries';
+import type { NoteListItem as Note } from '@shared/types/notes';
 import { formatDistanceToNow } from 'date-fns';
 
 export const NoteCardSkeleton = () => {
@@ -234,7 +235,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, onClick }) => {
                     {/* Tags section (at bottom of content) */} 
                     {tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-auto pt-2"> {/* mt-auto pushes to bottom */}
-                            {tags.slice(0, 5).map((tag) => ( // Show up to 5 tags
+                            {tags.slice(0, 5).map((tag: Tag) => ( // Show up to 5 tags
                                 <Badge key={tag.id} variant="secondary" className="text-xs font-normal">
                                     <Tags className="h-3 w-3 mr-1" /> 
                                     {tag.name}

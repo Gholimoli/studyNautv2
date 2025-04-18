@@ -1,40 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
-import { AppError } from '@/types/errors';
+import { AppError } from '@shared/types/errors';
 import { toast } from 'sonner';
-
-// Define the expected shape of a single note in the list
-// Keep this minimal for the list view, detailed view can fetch more
-export interface NoteListItem {
-  id: number;
-  sourceId: number;
-  userId: number;
-  title: string;
-  summary?: string;
-  createdAt: string;
-  updatedAt: string;
-  favorite: boolean;
-  sourceType: 'YOUTUBE' | 'TEXT' | 'AUDIO' | 'PDF' | 'IMAGE'; // Added sourceType
-  tags?: { id: number; name: string }[]; // Added optional tags array
-  folderId?: number | null; // ADD folderId
-  languageCode?: string | null; // Add languageCode
-}
-
-// Define the expected shape of the API response
-interface GetNotesResponse {
-  notes: NoteListItem[];
-  total: number;
-}
-
-// Define the type for query parameters
-export interface GetNotesParams {
-  limit?: number;
-  offset?: number;
-  favorite?: boolean;
-  folderId?: number;
-  sourceType?: 'YOUTUBE' | 'TEXT' | 'AUDIO' | 'PDF' | 'IMAGE';
-  // Add other potential filters like search query later
-}
+import {
+    NoteListItem, 
+    GetNotesResponse, 
+    GetNotesParams, 
+    NoteDetail, 
+    UpdateNoteResponse 
+} from '@shared/types/notes'; // Import shared types
+import {
+    fetchNotes,
+    fetchNoteById,
+    updateNote,
+    deleteNoteApi
+} from '@/lib/api/notes.api'; // Import API functions
 
 // Function to build a stable query key for notes
 function getNotesQueryKey(params?: GetNotesParams) {
@@ -49,28 +28,7 @@ function getNotesQueryKey(params?: GetNotesParams) {
   return key;
 }
 
-// Function to fetch notes from the API, now with parameters
-const fetchNotes = async (params?: GetNotesParams): Promise<GetNotesResponse> => {
-  // ADD LOG HERE
-  console.log(`%c[fetchNotes] Received params object:`, 'color: green; font-weight: bold;', params);
-
-  // Build query string from params
-  const queryParams = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) { 
-        queryParams.append(key, String(value));
-      }
-    });
-  }
-  const queryString = queryParams.toString();
-  const url = queryString ? `/notes?${queryString}` : '/notes';
-  
-  console.log(`%c[fetchNotes] Fetching URL:`, 'color: green; font-weight: bold;', url); // Log the final URL
-  
-  const response = await apiClient.get(url);
-  return response.data;
-};
+// --- Query Hooks ---
 
 // Hook to fetch the list of notes, now accepting parameters
 export function useGetNotesQuery(params?: GetNotesParams) {
@@ -80,7 +38,7 @@ export function useGetNotesQuery(params?: GetNotesParams) {
   
   return useQuery<GetNotesResponse, Error>({
     queryKey,
-    queryFn: () => fetchNotes(params),
+    queryFn: () => fetchNotes(params), // Use imported API function
     // Set staleTime to 0 to ensure data is always considered stale
     // This encourages refetching on mount/window focus after invalidation
     staleTime: 0, 
@@ -88,34 +46,13 @@ export function useGetNotesQuery(params?: GetNotesParams) {
   });
 }
 
-// Define the expected shape for a single detailed note
-interface NoteDetail extends Omit<NoteListItem, 'sourceType'> { // Remove sourceType from extension
-  markdownContent?: string | null;
-  htmlContent?: string | null;
-  languageCode?: string | null;
-  sourceType: 'YOUTUBE' | 'TEXT' | 'AUDIO' | 'PDF' | 'IMAGE' | null; // Allow null
-  // Add summary consistent with NoteListItem
-  summary?: string; // Changed from string | null to match NoteListItem
-  // originalTranscript?: string; // If applicable
-  // tags is already in NoteListItem, no need to repeat unless different type
-}
-
-// Function to fetch a single note by ID
-const fetchNoteById = async (noteId: string): Promise<NoteDetail> => {
-  if (!noteId) {
-    throw new Error('Note ID is required to fetch details.');
-  }
-  const response = await apiClient.get(`/notes/${noteId}`);
-  return response.data;
-};
-
 // Hook to fetch a single note by ID
 export function useGetNoteByIdQuery(noteId: string | undefined) {
   return useQuery<NoteDetail, Error>({
     // Query key includes the noteId to ensure uniqueness
     queryKey: ['note', noteId],
     // Only run the query if noteId is available
-    queryFn: () => fetchNoteById(noteId!),
+    queryFn: () => fetchNoteById(noteId!), // Use imported API function
     enabled: !!noteId, // Ensures the query doesn't run until noteId is defined
     // Optional: Add staleTime or other options
   });
@@ -132,7 +69,7 @@ interface UpdatedNoteResponse {
     folderId?: number | null;
 }
 
-// --- Mutations --- 
+// --- Mutation Hooks ---
 
 // Input type for the update mutation
 export interface UpdateNoteInput {
@@ -141,21 +78,8 @@ export interface UpdateNoteInput {
   // Add other fields like title, content if needed later
 }
 
-// API function to update a note
-const updateNote = async ({ noteId, input }: { noteId: number; input: UpdateNoteInput }): Promise<UpdatedNoteResponse> => {
-    try {
-        const response = await apiClient.patch<UpdatedNoteResponse>(`/notes/${noteId}`, input);
-        return response.data;
-    } catch (error: any) {
-        console.error(`Error updating note ${noteId}:`, error);
-        throw new AppError(
-            error.response?.status || '500',
-            error.response?.data?.message || 'Failed to update note'
-        );
-    }
-};
-
 // Type for the context returned by onMutate in useUpdateNote
+// This type is specific to the mutation hook context, keep it here
 interface UpdateNoteOptimisticContext {
   previousNotes?: GetNotesResponse;
   previousNoteDetail?: NoteDetail;
@@ -169,10 +93,10 @@ export function useUpdateNote() {
     const queryClient = useQueryClient();
 
     // Explicitly type the mutation hook including the context type
-    return useMutation<UpdatedNoteResponse, AppError, { noteId: number; input: UpdateNoteInput }, UpdateNoteOptimisticContext>({
-        mutationFn: updateNote,
+    return useMutation<UpdateNoteResponse, AppError, { noteId: number; input: UpdateNoteInput }, UpdateNoteOptimisticContext>({
+        mutationFn: updateNote, // Use imported API function
         
-        // --- Temporarily Comment Out Optimistic Update Logic --- 
+        // NOTE: Optimistic updates are currently commented out
         /*
         onMutate: async (variables) => {
             const { noteId, input } = variables;
@@ -329,20 +253,6 @@ export function useUpdateNote() {
 
 // --- Delete Note Mutation --- //
 
-// API function to delete a note
-const deleteNoteApi = async (noteId: number): Promise<void> => {
-    try {
-        // DELETE request, typically returns 204 No Content on success
-        await apiClient.delete(`/notes/${noteId}`);
-    } catch (error: any) {
-        console.error(`Error deleting note ${noteId}:`, error);
-        throw new AppError(
-            error.response?.status || '500',
-            error.response?.data?.message || 'Failed to delete note'
-        );
-    }
-};
-
 /**
  * TanStack Query hook to delete a note.
  */
@@ -350,7 +260,7 @@ export function useDeleteNote() {
     const queryClient = useQueryClient();
 
     return useMutation<void, AppError, number>({
-        mutationFn: deleteNoteApi,
+        mutationFn: deleteNoteApi, // Use imported API function
         onSuccess: (_, noteId) => {
             // Invalidate the notes list query to refresh the list
             queryClient.invalidateQueries({ queryKey: getNotesQueryKey() });

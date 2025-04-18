@@ -106,3 +106,40 @@
 *   [ ] Refine UI/UX based on feedback
 *   [ ] Add comprehensive tests
 *   [x] Synchronize `.mdc` and `.md` documentation (In Progress)
+
+## High Priority Code Review Cleanup
+
+- [x] **Investigate & Remove Redundant Directory:** Checked `studyNautv2-mirror/` and removed.
+- [x] **Review Worker Restart Workflow:** Verified `pnpm dev` uses `nodemon`. Updated `docs/lessons-learned.md`.
+- [x] **Improve Error Handling Consistency:** Enhanced global API error handler logging in `server/src/index.ts`.
+
+## Medium Priority Code Review Cleanup
+
+- [x] **Documentation Consistency:** Confirmed `.mdc` rules are primary source for remaining docs.
+- [x] **Configuration Validation:** Added Zod validation for env vars in `server/src/core/config/config.ts`.
+- [x] **Type Safety & Sharing:** Moved shared types to `@shared/types` and updated imports.
+- [-] **Refactor Large Files:** Identifying files > 300 LOC and plan refactoring (e.g., worker jobs, services). (Starting)
+- [ ] **Frontend Styling Consistency:** Spot-check components against UI/Theme guidelines.
+
+## Low Priority Code Review Cleanup
+
+- [ ] **Naming Conventions:** Quick scan for deviations.
+- [ ] **Dependency Review:** Check for unused/outdated packages.
+- [ ] **`.gitignore` Completeness:** Add standard ignores.
+- [ ] **Magic Strings/Constants:** Refactor literals into constants.
+- [ ] **JSDoc Comments:** Assess coverage on exported functions/hooks.
+
+## Feature Development
+*(Add future feature tasks here)*
+
+## Bugs
+*(Add bug tracking here)*
+
+## Completed (Recent)
+
+- [x] Fix linter errors and refactor `mistral.provider.ts` to align with `IOcrProvider` interface.
+- [x] Fix `NoteListItem` import and `tag` type error in `NoteCard.tsx`.
+
+## To Do
+
+- [ ] Refactor `server/src/core/worker.ts` into smaller, dedicated job handlers (e.g., in `server/src/core/jobs/`).

@@ -38,12 +38,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 *   Refined the Express route handler signature in `getNotes.route.ts` to return `Promise<void>` and explicitly type `Response`.
 *   Updated `server/tsconfig.json` to include the `@server/*` path alias pointing to `src/*`.
 *   **Audio pipeline:** Improved error handling, logging, and modularity. Confirmed all server files are under 300 lines (except orchestrators). End-to-end audio upload, transcription, and note generation tested and working.
+*   Refactored `server/src/modules/ocr/providers/mistral.provider.ts` to strictly adhere to the `IOcrProvider` interface, handling `Buffer` input directly instead of file paths/base64.
+*   Centralized Mistral API file operations (upload, get URL, delete) into `mistral.utils.ts`.
 
 ### Fixed
 
 *   Resolved TypeScript module resolution errors for `@server/*` imports in the backend.
 *   Corrected Express route handler return type linting errors.
 *   Corrected layout of folder items in the Sidebar (`Sidebar.tsx`) to ensure the note count is always aligned to the right, consistent with other navigation items. This involved adjusting the flex layout and positioning of the expand/collapse button.
+*   Corrected various import path errors in `server/src/modules/ocr/providers/mistral.provider.ts`.
+*   Added missing `providerName` property to `MistralOcrProvider`.
+*   Resolved `NoteListItem` import issue in `client/src/components/notes/NoteCard.tsx` by importing directly from `@shared/types/notes`.
+*   Fixed implicit `any` type for `tag` parameter in `NoteCard.tsx`.
+*   Corrected unterminated template literal in `mistral.provider.ts` log message.
 
 ### Removed
 
