@@ -53,20 +53,20 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
     for (const block of aiStructure.structure) {
         switch (block.type) {
             case 'heading':
-                markdownContent += `${'#'.repeat(block.level || 1)} ${block.content}\n\n`;
+                markdownContent += `${'#'.repeat(block.level || 1)} ${block.content ?? ''}\n\n`;
                 break;
             case 'subheading': 
-                markdownContent += `## ${block.content}\n\n`;
+                markdownContent += `## ${block.content ?? ''}\n\n`;
                 break;
             case 'paragraph':
-                markdownContent += `${block.content}\n\n`;
+                markdownContent += `${block.content ?? ''}\n\n`;
                 break;
             case 'bullet_list':
                 block.items?.forEach(item => markdownContent += `* ${item}\n`);
                 markdownContent += '\n';
                 break;
             case 'key_term':
-                markdownContent += `**${block.content}**\n\n`; 
+                markdownContent += `**${block.content ?? ''}**\n\n`;
                 break;
             case 'visual_placeholder':
                 if (block.placeholderId) {
@@ -95,8 +95,12 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
     // --- Generate and Save Tags --- 
     let generatedTagIds: number[] = [];
     try {
+      // Determine language code (ISO 639-3) from the dedicated column *before* generating tags
+      const finalLanguageCode = sourceRecord.languageCode || 'eng'; // Default to 'eng'
+      console.log(`[Worker:AssembleNote] Using languageCode (ISO 639-3): ${finalLanguageCode} from source column for tag generation for source ID: ${sourceId}`);
+
       console.log(`[Worker:AssembleNote] Generating tags for source ID: ${sourceId}...`);
-      const generatedTagNames = await aiService.generateTags(markdownContent);
+      const generatedTagNames = await aiService.generateTags(markdownContent, finalLanguageCode);
       console.log(`[Worker:AssembleNote] Generated ${generatedTagNames.length} tag names:`, generatedTagNames);
 
       if (generatedTagNames.length > 0) {
@@ -163,8 +167,8 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
             else if (ext === 'jpg' || ext === 'jpeg' || ext === 'png') finalSourceType = 'IMAGE';
             else finalSourceType = 'TEXT';
         }
-        // Fallback: infer languageCode from metadata or default to 'en'
-        let finalLanguageCode = (sourceRecord!.metadata?.languageCode as string | undefined) || (sourceRecord as any).languageCode || 'en';
+        // Language code (ISO 639-3) from dedicated column, default to 'eng'
+        const finalLanguageCode = sourceRecord.languageCode || 'eng';
 
         // Insert the note
         const insertedNotes = await tx.insert(notes).values({
@@ -176,7 +180,7 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
             htmlContent: htmlContent,
             favorite: false,
             sourceType: finalSourceType,
-            languageCode: finalLanguageCode,
+            languageCode: finalLanguageCode, // Save the ISO 639-3 code
         }).returning({ noteId: notes.id });
 
         const newNoteId = insertedNotes[0]?.noteId;

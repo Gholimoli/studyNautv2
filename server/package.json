@@ -34,6 +34,8 @@
     "express-validator": "^7.2.1",
     "file-type": "^20.4.1",
     "form-data": "^4.0.2",
+    "franc": "^6.2.0",
+    "franc-all": "^7.2.0",
     "ioredis": "^5.6.1",
     "marked": "^15.0.8",
     "mime-types": "^3.0.1",

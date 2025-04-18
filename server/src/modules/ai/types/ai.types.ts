@@ -31,7 +31,7 @@ export interface IAiProvider {
 // Schema for a single block in the lesson structure
 export const lessonBlockSchema = z.object({
   type: z.enum(['heading', 'subheading', 'paragraph', 'bullet_list', 'key_term', 'visual_placeholder']), // Added visual_placeholder
-  content: z.string().optional(), // Allow content to be optional to handle AI omissions
+  content: z.string().nullable().optional(), // Allow content to be null or optional
   level: z.number().nullable().optional(), // Allow null for level as well, keep optional
   items: z.array(z.string()).nullable().optional(), // Allow null for items, keep optional
   placeholderId: z.string().nullable().optional(), // Allow null for placeholderId, keep optional

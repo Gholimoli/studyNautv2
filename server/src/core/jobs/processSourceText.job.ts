@@ -39,9 +39,13 @@ export async function processSourceTextJob(job: Job<ProcessSourceTextJobData>): 
       throw new Error(`Source record or extracted text not found for ID: ${sourceId}`);
     }
 
+    // Extract languageCode (ISO 639-3) from the dedicated column, default to 'eng'
+    const languageCode = sourceRecord.languageCode || 'eng'; 
+    console.log(`[Worker:ProcessSourceText] Using languageCode (ISO 639-3): ${languageCode} from source column for source ID: ${sourceId}`);
+
     // 3. Call AI Service to generate lesson structure
     console.log(`[Worker:ProcessSourceText] Calling AI service for source ID: ${sourceId}...`);
-    const aiResult = await aiService.generateLessonStructure(sourceRecord.extractedText);
+    const aiResult = await aiService.generateLessonStructure(sourceRecord.extractedText, languageCode);
 
     if (!aiResult) {
         // Error already logged within AiService

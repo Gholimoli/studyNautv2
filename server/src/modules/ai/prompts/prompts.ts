@@ -7,6 +7,8 @@
 // It currently includes basic instructions for JSON output based on aiStructuredContentSchema.
 export const GENERATE_LESSON_STRUCTURE = `
 You are an expert educational content creator. Analyze the following text and generate a structured lesson plan in a valid JSON format.
+**IMPORTANT:** Generate the entire response (title, summary, structure content, visual descriptions, etc.) in the language specified by the language code: **{LANGUAGE_CODE}**.
+(Note: {LANGUAGE_CODE} should be the 3-letter ISO 639-3 code, e.g., 'eng', 'spa', 'fra')
 
 The JSON object must strictly adhere to the following structure:
 {
@@ -49,7 +51,7 @@ Text to analyze:
 {SOURCE_TEXT}
 ---
 
-Valid JSON Output:
+Valid JSON Output (in {LANGUAGE_CODE}):
 `;
 
 // Add other prompts (e.g., GENERATE_QUIZ, EXTRACT_FLASHCARDS) later.
@@ -65,10 +67,12 @@ export const GENERATE_TAGS = (content: string): string => `
 Analyze the following content and identify 3-5 concise, relevant subject tags or keywords that accurately represent the main topics.
 Focus on specific concepts, disciplines, or key entities mentioned.
 Avoid overly generic terms unless they are central to the theme.
+**IMPORTANT:** Generate the tags themselves in the language specified by the language code: **{LANGUAGE_CODE}**.
+(Note: {LANGUAGE_CODE} should be the 3-letter ISO 639-3 code, e.g., 'eng', 'spa', 'fra')
 
 Return the tags as a JSON object with a single key "tags" containing an array of strings.
 
-Example Response:
+Example Response (for language code 'en'):
 { "tags": ["Quantum Physics", "Superposition", "Entanglement"] }
 
 Content to analyze:
@@ -76,5 +80,5 @@ Content to analyze:
 ${content}
 ---
 
-JSON Response:
+JSON Response (tags in {LANGUAGE_CODE}):
 `; 

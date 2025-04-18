@@ -1,9 +1,5 @@
 import { getJson } from 'serpapi';
-import * as dotenv from 'dotenv';
-
-dotenv.config({ path: '../../../.env' }); // Adjust path relative to dist
-
-const API_KEY = process.env.SERPAPI_API_KEY;
+import { config } from '@/core/config/config'; // Import validated config
 
 /**
  * Searches for an image using SerpApi Google Images Search.
@@ -13,8 +9,9 @@ const API_KEY = process.env.SERPAPI_API_KEY;
  * @returns A promise that resolves to the image URL string or null.
  */
 export async function searchImage(query: string): Promise<string | null> {
-  if (!API_KEY) {
-    console.error('[ImageSearch] SERPAPI_API_KEY not configured.');
+  const apiKey = config.ai.serpapiKey; // Get key from config
+  if (!apiKey) { 
+    console.error('[ImageSearch] SERPAPI_API_KEY not configured in config.');
     return null;
   }
 
@@ -23,7 +20,7 @@ export async function searchImage(query: string): Promise<string | null> {
     const params = {
       engine: "google_images",
       q: query,
-      api_key: API_KEY,
+      api_key: apiKey, // Use key from config
       ijn: "0" // Page number (0 for first page)
     };
 

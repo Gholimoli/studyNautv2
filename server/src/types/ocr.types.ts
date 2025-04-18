@@ -1,8 +1,4 @@
-export interface OcrResult {
-  text: string;
-  provider: string;
-  meta?: any;
-}
+import type { OcrResult } from '@shared/types/ocr.types';
 
 export interface IOcrProvider {
   providerName: string;

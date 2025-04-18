@@ -1,26 +1,25 @@
 import { IAiProvider, AiRequestOptions, AiResponse } from '@/modules/ai/types/ai.types';
-import * as dotenv from 'dotenv';
+import { config } from '@/core/config/config'; // Import validated config
 
-dotenv.config({ path: '../../../.env' }); // Adjust path relative to dist
-
-const API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = 'https://api.openai.com/v1';
-// Default model from .env.example, can be overridden by env var
-const DEFAULT_MODEL = process.env.FALLBACK_AI_PROVIDER || 'gpt-4o-mini';
+// Get default model from validated config
+const DEFAULT_MODEL = config.ai.fallbackProvider || 'gpt-4o-mini'; // Use fallback as default here
 
 export class OpenAiProvider implements IAiProvider {
   readonly providerName = 'openai';
   private modelName: string;
+  private apiKey: string | undefined; // Store API key from config
 
   constructor(modelName?: string) {
     this.modelName = modelName || DEFAULT_MODEL;
-    if (!API_KEY) {
-      console.warn('[OpenAiProvider] OPENAI_API_KEY environment variable not set. Provider will likely fail.');
+    this.apiKey = config.ai.openaiApiKey; // Get key from config
+    if (!this.apiKey) {
+      console.warn('[OpenAiProvider] OPENAI_API_KEY not found in config. Provider will likely fail.');
     }
   }
 
   async generateText(prompt: string, options?: AiRequestOptions): Promise<AiResponse> {
-    if (!API_KEY) {
+    if (!this.apiKey) { // Check stored key
       return { content: null, errorMessage: 'OpenAI API key not configured.' };
     }
 
@@ -46,7 +45,7 @@ export class OpenAiProvider implements IAiProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
+          'Authorization': `Bearer ${this.apiKey}`, // Use stored key
         },
         body: JSON.stringify(requestBody),
       });

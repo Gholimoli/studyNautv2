@@ -7,6 +7,8 @@ import { eq } from 'drizzle-orm';
 import { storageService } from '@/core/services/storage.service'; // Import StorageService
 import * as fs from 'fs/promises'; // Import fs promises for deletion
 import path from 'path'; // Import path for filename handling
+import { francAll } from 'franc-all'; // Import language detection library
+// import { iso6393To1 } from '@/lib/utils/language-codes'; // No longer needed for mapping
 
 // Define a basic user type expected from req.user (Passport)
 interface AuthenticatedUser {
@@ -27,13 +29,26 @@ export class MediaService {
   async createSourceFromText(data: ProcessTextDto, user: AuthenticatedUser) {
     console.log(`[MediaService] Creating text source for user ${user.id}`);
     
+    // Detect language (ISO 639-3)
+    const langGuesses = francAll(data.text.substring(0, 1000), { minLength: 3 });
+    const detectedLang3 = langGuesses.length > 0 ? langGuesses[0][0] : 'und'; // Get the top guess (ISO 639-3) or 'und'
+    // Use 'eng' as the effective default if undetermined for processing consistency
+    const finalLanguageCode = detectedLang3 === 'und' ? 'eng' : detectedLang3; 
+    console.log(`[MediaService] Detected language (Top Guess ISO 639-3): ${detectedLang3}, Using for processing: ${finalLanguageCode}`);
+
+    // Prepare metadata (optional title)
+    const metadata: Record<string, any> = {};
+    if (data.title) {
+      metadata.title = data.title;
+    }
+
     const newSource = await db.insert(sources).values({
       userId: user.id,
-      sourceType: 'TEXT', // Set source type
-      extractedText: data.text, // Store the provided text
-      metadata: data.title ? { title: data.title } : {}, // Store optional title
-      processingStatus: 'PENDING', // Initial status
-      // processingStage will be set by the first job
+      sourceType: 'TEXT',
+      extractedText: data.text,
+      languageCode: finalLanguageCode, // Save to dedicated column
+      metadata: metadata, // Save only other metadata (like title)
+      processingStatus: 'PENDING',
     }).returning({
       id: sources.id,
       sourceType: sources.sourceType,
@@ -73,8 +88,11 @@ export class MediaService {
    * @returns The result containing the new source ID.
    */
   async createSourceFromAudioUpload(file: UploadedFile, user: AuthenticatedUser, languageCode?: string) {
-    console.log(`[MediaService] Processing audio upload for user ${user.id}: ${file.originalname}`);
+    console.log(`[MediaService] Processing audio upload for user ${user.id}: ${file.originalname}. Provided language code: ${languageCode || 'None'}`);
     let storagePath: string | null = null;
+
+    // Use provided language code or default to 'eng' (ISO 639-3)
+    const finalLanguageCode = languageCode || 'eng'; 
 
     try {
       // 1. Construct storage path (e.g., user_123/audio/timestamp_filename.mp3)
@@ -109,8 +127,9 @@ export class MediaService {
         userId: user.id,
         sourceType: 'AUDIO',
         originalFilename: file.originalname,
-        originalStoragePath: storagePath, // Save the Supabase path
-        metadata: { ...(languageCode && { languageCode }), storagePath }, // Include storagePath in metadata
+        originalStoragePath: storagePath,
+        languageCode: finalLanguageCode, // Save to dedicated column
+        metadata: { storagePath }, // Keep storagePath in metadata for now, remove languageCode
         processingStatus: 'PENDING',
       }).returning({
         id: sources.id,
@@ -127,9 +146,9 @@ export class MediaService {
           sourceId: createdSource.id, 
           audioFilePath: storagePath, // Pass Supabase path to job? Or let job fetch it?
           // For now, let's assume the job needs the storage path to fetch the file later.
-          languageCode: languageCode 
+          languageCode: finalLanguageCode // Pass the determined ISO 639-3 code
       });
-      console.log(`[MediaService] Enqueued ${JobType.PROCESS_AUDIO_TRANSCRIPTION} job for source ID: ${createdSource.id}`);
+      console.log(`[MediaService] Enqueued ${JobType.PROCESS_AUDIO_TRANSCRIPTION} job for source ID: ${createdSource.id}, Language: ${finalLanguageCode}`);
 
       return {
         sourceId: createdSource.id,

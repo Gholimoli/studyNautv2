@@ -1,30 +1,29 @@
 import { IAiProvider, AiRequestOptions, AiResponse } from '@/modules/ai/types/ai.types';
-import * as dotenv from 'dotenv';
+import { config } from '@/core/config/config'; // Import validated config
 
-dotenv.config({ path: '../../../.env' }); // Adjust path relative to dist
-
-const API_KEY = process.env.GEMINI_API_KEY;
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-// Default model from .env.example, can be overridden by env var
-const DEFAULT_MODEL = process.env.PRIMARY_AI_PROVIDER || 'gemini-1.5-flash'; 
+// Get default model from validated config
+const DEFAULT_MODEL = config.ai.primaryProvider || 'gemini-1.5-flash'; // Use primary as default here
 
 export class GeminiProvider implements IAiProvider {
   readonly providerName = 'gemini';
   private modelName: string;
+  private apiKey: string | undefined; // Store API key from config
 
   constructor(modelName?: string) {
     this.modelName = modelName || DEFAULT_MODEL;
-    if (!API_KEY) {
-      console.warn('[GeminiProvider] GEMINI_API_KEY environment variable not set. Provider will likely fail.');
+    this.apiKey = config.ai.googleApiKey; // Get key from config
+    if (!this.apiKey) {
+      console.warn('[GeminiProvider] GOOGLE_API_KEY not found in config. Provider will likely fail.');
     }
   }
 
   async generateText(prompt: string, options?: AiRequestOptions): Promise<AiResponse> {
-    if (!API_KEY) {
+    if (!this.apiKey) { // Check stored key
       return { content: null, errorMessage: 'Gemini API key not configured.' };
     }
 
-    const apiUrl = `${BASE_URL}/${this.modelName}:generateContent?key=${API_KEY}`;
+    const apiUrl = `${BASE_URL}/${this.modelName}:generateContent?key=${this.apiKey}`;
 
     const requestBody = {
       contents: [{ parts: [{ text: prompt }] }],

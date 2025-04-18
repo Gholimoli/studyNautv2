@@ -84,8 +84,11 @@ class AiService {
    * Generates structured lesson content from source text.
    * Ensures the output conforms to the AiStructuredContent schema.
    */
-  async generateLessonStructure(sourceText: string): Promise<AiStructuredContent | null> {
-    const prompt = GENERATE_LESSON_STRUCTURE.replace('{SOURCE_TEXT}', sourceText);
+  async generateLessonStructure(sourceText: string, languageCode: string = 'eng'): Promise<AiStructuredContent | null> {
+    const promptTemplate = GENERATE_LESSON_STRUCTURE;
+    const prompt = promptTemplate
+        .replace('{SOURCE_TEXT}', sourceText)
+        .replace(/{LANGUAGE_CODE}/g, languageCode); // Use global replace
     
     const options: AiRequestOptions = {
         jsonMode: true,
@@ -123,11 +126,13 @@ class AiService {
    * Generates relevant subject tags for the given text content.
    * Returns an array of tag strings.
    */
-  async generateTags(textContent: string): Promise<string[]> {
+  async generateTags(textContent: string, languageCode: string = 'eng'): Promise<string[]> {
     const MAX_TAG_INPUT_LENGTH = 5000;
     const truncatedText = textContent.substring(0, MAX_TAG_INPUT_LENGTH);
     
-    const prompt = GENERATE_TAGS(truncatedText);
+    const promptTemplate = GENERATE_TAGS(truncatedText); // GENERATE_TAGS returns a function, invoke it
+    const prompt = promptTemplate.replace(/{LANGUAGE_CODE}/g, languageCode); // Use global replace
+
     const options: AiRequestOptions = {
       jsonMode: true,
       temperature: 0.3,

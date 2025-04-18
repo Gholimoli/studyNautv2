@@ -70,11 +70,28 @@ app.use('/api/folders', folderRoutes); // Mount Folder routes
 // TODO: Add other module routes (notes, etc.)
 
 // Add global error handler middleware (must be after all routes)
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('[Global Error Handler]', err);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err : undefined,
+app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
+  const status = err.status || 500;
+  const message = err.message || 'Internal server error';
+  const userId = (req.user as any)?.id || 'anonymous'; // Get user ID if available
+
+  // Log structured error information
+  console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'ERROR',
+    message: message,
+    status: status,
+    method: req.method,
+    url: req.originalUrl,
+    userId: userId,
+    stack: err.stack, // Log the stack trace
+    // Optionally add err.code or other specific error properties
+  }, null, 2)); // Pretty print JSON for readability in console
+
+  res.status(status).json({
+    message: message,
+    // Only include detailed error in development
+    error: process.env.NODE_ENV === 'development' ? { stack: err.stack } : undefined,
   });
 });
 
