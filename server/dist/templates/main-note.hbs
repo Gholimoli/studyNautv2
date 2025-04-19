@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} | Studynaut</title>
+  {{!-- Rely on client-side Tailwind or linked CSS. No inline styles here. --}}
+</head>
+<body class="p-4 md:p-6 lg:p-8 font-sans text-foreground bg-background"> {{!-- Basic body styles --}}
+  <header class="mb-8 border-b pb-4">
+    {{!-- Render title using specific heading level based on context, maybe h1 here? --}}
+    <h1 class="text-3xl font-semibold">{{title}}</h1>
+    {{#if summary}}
+      {{!-- Basic summary styling --}}
+      <p class="mt-2 text-base italic text-muted-foreground border-l-4 border-border pl-4 py-1">{{summary}}</p>
+    {{/if}}
+  </header>
+
+  <main>
+    {{#each structure}}
+      {{!-- Render section partial, passing down visuals map --}}
+      {{> section block=this visuals=../visuals}}
+    {{/each}}
+  </main>
+
+  <footer>
+    {{!-- Potential future footer content --}}
+  </footer>
+
+</body>
+</html> 

@@ -50,17 +50,18 @@ export async function processVisualPlaceholdersJob(job: Job<ProcessVisualPlaceho
 
     // 2. Create visual records and enqueue GENERATE_VISUAL jobs
     const visualCreationPromises = visualOpportunities.map(async (opp) => {
-      if (!opp.placeholderId || !opp.description) {
-        console.warn(`[Worker:ProcessVisualPlaceholders] Skipping invalid visual opportunity for source ${sourceId}:`, opp);
+      if (!opp.placeholderId || !opp.description || !opp.concept || !opp.searchQuery) {
+        console.warn(`[Worker:ProcessVisualPlaceholders] Skipping invalid or incomplete visual opportunity for source ${sourceId}:`, opp);
         return null;
       }
       
       const newVisual = await db.insert(visuals).values({
         sourceId: sourceId,
         placeholderId: opp.placeholderId,
+        concept: opp.concept,
         description: opp.description,
         searchQuery: opp.searchQuery,
-        status: 'PENDING',
+        status: 'PENDING_GENERATION',
       }).returning({ id: visuals.id });
 
       if (!newVisual || newVisual.length === 0) {

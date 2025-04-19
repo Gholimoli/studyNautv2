@@ -40,6 +40,7 @@ class AiService {
       case 'gemini':
       case 'gemini-1.5-flash':
       case 'gemini-2.0-flash': // Allow specific model names used in config
+      case 'gemini-2.5-pro-exp-03-25': // Recognize the new Pro model
         return new GeminiProvider(providerName);
       case 'openai':
       case 'gpt-4o':
@@ -93,6 +94,7 @@ class AiService {
     const options: AiRequestOptions = {
         jsonMode: true,
         temperature: 0.5, 
+        maxOutputTokens: 8192, 
     };
 
     const response = await this.generateTextWithFallback(prompt, options);

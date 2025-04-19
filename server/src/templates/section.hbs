@@ -1,0 +1,60 @@
+<section id="section-{{block.placeholderId}}" class="mb-6 md:mb-8">
+  {{!-- Conditional rendering based on contentType --}}
+  {{#if (eq block.contentType 'heading')}}
+    {{!-- Use specific text sizes from theme.mdc --}}
+    {{#if (eq block.level 1)}}
+      <h1 class="text-3xl font-semibold mb-4 mt-6 border-b pb-2">{{block.content}}</h1>
+    {{else if (eq block.level 2)}}
+      <h2 class="text-2xl font-semibold mb-3 mt-5 border-b pb-1">{{block.content}}</h2>
+    {{else if (eq block.level 3)}}
+      <h3 class="text-xl font-semibold mb-2 mt-4">{{block.content}}</h3>
+    {{else}}
+      <h4 class="text-lg font-semibold mb-2 mt-3">{{block.content}}</h4> {{!-- Fallback for level 4+ --}}
+    {{/if}}
+  {{else if (eq block.contentType 'paragraph')}}
+    <p class="text-base leading-relaxed mb-4">{{{block.content}}}</p> {{!-- Use triple stash for potential HTML --}}
+  {{else if (eq block.contentType 'bullet_list')}}
+    <ul class="list-disc pl-6 mb-4 space-y-2"> {{!-- Increased space-y --}}
+      {{#each block.items}}
+        <li class="text-base">{{{this}}}</li> {{!-- Use triple stash --}}
+      {{/each}}
+    </ul>
+  {{else if (eq block.contentType 'key_takeaway_box')}}
+    {{!-- Render the dedicated partial --}}
+    {{> key_takeaway_box keyPoints=block.keyPoints}}
+  {{else if (eq block.contentType 'code_block')}}
+    {{!-- Render using a basic pre/code for now, assumes no language highlighting needed here --}}
+    {{!-- We might differentiate this from advanced_code_block later --}}
+    <pre class="bg-muted text-muted-foreground p-4 rounded-md overflow-x-auto mb-4 text-sm font-mono"><code>{{{block.content}}}</code></pre>
+  {{else if (eq block.contentType 'advanced_code_block')}}
+    {{!-- Render the dedicated partial --}}
+    {{> advanced_code_block content=block.content}}
+  {{else if (eq block.contentType 'definition')}}
+    {{!-- Keep simple definition style for now --}}
+    <div class="border-l-4 border-secondary pl-4 py-2 mb-4 italic text-base">
+        <p><strong>Definition:</strong> {{{block.content}}}</p>
+    </div>
+  {{else if (eq block.contentType 'callout_info')}}
+    {{!-- Render the dedicated partial --}}
+    {{> callout_info content=block.content}}
+  {{else if (eq block.contentType 'visual_placeholder')}}
+    {{!-- Find the visual data using the custom findVisual helper and @root context --}}
+    {{#with (findVisual block.placeholderId @root.visuals) as |visualData|}}
+      {{!-- Check the status of the found visual --}}
+      {{#if (eq visualData.status 'COMPLETED')}}
+        {{!-- Render the visual partial if completed --}}
+        {{> visual imageUrl=visualData.imageUrl altText=visualData.altText sourceUrl=visualData.sourceUrl sourceTitle=visualData.sourceTitle}}
+      {{else}}
+        {{!-- Render the placeholder partial otherwise (failed, pending, etc.) --}}
+        {{> placeholder concept=visualData.concept errorMessage=visualData.errorMessage}}
+      {{/if}}
+    {{else}}
+        {{!-- Fallback if findVisual returns null/falsy --}}
+        {{> placeholder concept="Visual concept details missing" errorMessage="(Helper lookup failed)"}}
+    {{/with}}
+  {{else}}
+    {{!-- Default fallback for other types like introduction, explanation, example --}}
+    {{!-- Render as paragraph, use triple stash --}}
+    <p class="text-base leading-relaxed mb-4">{{{block.content}}}</p>
+  {{/if}}
+</section> 

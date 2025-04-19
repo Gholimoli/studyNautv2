@@ -1,7 +1,7 @@
 import { Job } from 'bullmq';
 import { db } from '../db/index';
 import { sources, visuals, notes, tags, notesToTags } from '../db/schema';
-import { eq, sql, ilike } from 'drizzle-orm';
+import { eq, sql, ilike, InferSelectModel } from 'drizzle-orm';
 import { AiStructuredContent, LessonBlock } from '../../modules/ai/types/ai.types';
 import { AssembleNotePayload } from './job.definition';
 import { aiService } from '../../modules/ai/ai.service'; // Import AiService
@@ -74,6 +74,47 @@ async function loadAndCompileTemplates() {
     Handlebars.registerPartial('visual', visualPartialSource);
     Handlebars.registerPartial('placeholder', placeholderPartialSource);
 
+    // --- Dynamically load and register partials from the partials directory ---
+    const partialsDir = path.join(templateDir, 'partials');
+    try {
+      const partialFiles = await fs.readdir(partialsDir);
+      console.log(`[Worker:AssembleNote] Found partial files: ${partialFiles.join(', ')}`);
+      for (const filename of partialFiles) {
+        if (filename.endsWith('.hbs')) {
+          const partialName = path.basename(filename, '.hbs');
+          const partialPath = path.join(partialsDir, filename);
+          try {
+            const partialSource = await readFileWithRetry(partialPath);
+            Handlebars.registerPartial(partialName, partialSource);
+            console.log(`[Worker:AssembleNote] Registered partial: ${partialName}`);
+          } catch (partialReadError) {
+            console.error(`[Worker:AssembleNote] Failed to read or register partial: ${partialName} from ${partialPath}`, partialReadError);
+            // Decide if failure to load one partial should prevent all template loading
+            // For now, log error and continue trying others
+          }
+        }
+      }
+    } catch (readPartialsDirError: any) {
+        if (readPartialsDirError.code === 'ENOENT') {
+             console.warn(`[Worker:AssembleNote] Partials directory not found at ${partialsDir}. Skipping dynamic partial loading.`);
+        } else {
+            console.error(`[Worker:AssembleNote] Failed to read partials directory ${partialsDir}:`, readPartialsDirError);
+            // Potentially re-throw or handle as critical error depending on requirements
+        }
+    }
+    // --- End dynamic partial loading ---
+
+    // --- Register Syntax Highlighting Helper (Placeholder) ---
+    // TODO: Integrate actual server-side syntax highlighting (e.g., shiki)
+    Handlebars.registerHelper('highlightSyntax', function(code: string, language?: string) {
+        // Placeholder: Just wrap in pre/code for now
+        // In reality, this would call shiki.codeToHtml(code, { lang: language || 'plaintext' })
+        // Ensure output is marked as safe string
+        const escapedCode = Handlebars.Utils.escapeExpression(code);
+        return new Handlebars.SafeString(`<pre class="shiki-placeholder"><code>${escapedCode}</code></pre>`);
+    });
+    // --- End Syntax Highlighting Helper ---
+
     // Register Helpers
     Handlebars.registerHelper('eq', function (this: any, a: unknown, b: unknown, options?: Handlebars.HelperOptions) {
       // Robust check for block vs inline
@@ -88,7 +129,11 @@ async function loadAndCompileTemplates() {
 
     // Helper to find the visual object by placeholderId
     Handlebars.registerHelper('findVisual', function (this: any, placeholderId: string, visualsMap: Record<string, any>, options?: Handlebars.HelperOptions) {
+        console.log(`[Helper:findVisual] Looking for ID: "${placeholderId}"`);
+        console.log(`[Helper:findVisual] Available keys in visualsMap: ${visualsMap ? Object.keys(visualsMap).join(', ') : 'null/undefined'}`);
         const visual = visualsMap && placeholderId ? visualsMap[placeholderId] : null;
+        console.log(`[Helper:findVisual] Found visual: ${!!visual}`);
+
         // Robust check for block vs inline
         if (options && typeof options.fn === 'function') {
             // Block form
@@ -169,13 +214,90 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
     }
 
     const aiStructure = (sourceRecord as any).metadata.aiStructure as AiStructuredContent;
-    const fetchedVisuals = (sourceRecord as any).visuals || [];
-    const visualsMap = new Map<string, typeof fetchedVisuals[0]>(); 
-    fetchedVisuals.forEach((v: any) => {
+    // Explicitly type fetchedVisuals based on the Drizzle schema
+    type VisualRecord = InferSelectModel<typeof visuals>; 
+    const fetchedVisuals: VisualRecord[] = (sourceRecord as any).visuals || []; 
+    const visualsMap = new Map<string, VisualRecord>(); 
+
+    // --- MODIFIED LOGIC ---
+    // Create a temporary map of fetched visuals keyed by their DB placeholderId for efficient lookup
+    const fetchedVisualsByDbId = new Map<string, VisualRecord>();
+    fetchedVisuals.forEach((v) => { // v should now be correctly typed as VisualRecord
         if(v.placeholderId) {
-            visualsMap.set(v.placeholderId, v);
+            fetchedVisualsByDbId.set(v.placeholderId, v);
         }
     });
+
+    // --- Correction Logic MOVED UP: Ensure correct contentType for visual blocks FIRST ---
+    const expectedPlaceholderIds = new Set(aiStructure.visualOpportunities?.map(opp => opp.placeholderId).filter(id => !!id) || []);
+    let structureModified = false;
+
+    if (expectedPlaceholderIds.size > 0) {
+        // First pass: Correct existing blocks
+        aiStructure.structure.forEach(block => {
+            if (block.placeholderId && expectedPlaceholderIds.has(block.placeholderId)) {
+                if (block.contentType !== 'visual_placeholder') {
+                    console.warn(`[Worker:AssembleNote] Correcting contentType for block with existing placeholderId "${block.placeholderId}". Was "${block.contentType}", changing to "visual_placeholder".`);
+                    block.contentType = 'visual_placeholder';
+                    // Clear potentially wrong content if type was paragraph etc.
+                    block.content = ''; 
+                    block.items = null;
+                    block.keyPoints = null;
+                    block.level = null;
+                    structureModified = true;
+                }
+                // Mark this ID as found in the structure
+                expectedPlaceholderIds.delete(block.placeholderId);
+            }
+        });
+
+        // Second pass: Handle expected IDs that were *missing* from the structure
+        // Note: Inserting blocks might disrupt intended flow. A warning might be safer.
+        if (expectedPlaceholderIds.size > 0) {
+             console.warn(`[Worker:AssembleNote] The following placeholderIds from visualOpportunities were MISSING in the structure: ${Array.from(expectedPlaceholderIds).join(', ')}. Visuals for these IDs may not render.`);
+            // // OPTIONAL: Attempt to insert missing blocks (complex logic needed to find location)
+            // expectedPlaceholderIds.forEach(missingId => {
+            //     // Find appropriate insertion point (e.g., based on concept similarity?)
+            //     // This is non-trivial and might place visuals incorrectly.
+            //     aiStructure.structure.push({
+            //         contentType: 'visual_placeholder',
+            //         placeholderId: missingId,
+            //         content: 'Visual Placeholder (Inserted)',
+            //         level: null,
+            //         items: null,
+            //         keyPoints: null
+            //     });
+            //     structureModified = true;
+            // });
+        }
+    }
+    if (structureModified) {
+        console.log("[Worker:AssembleNote] aiStructure was modified to correct visual placeholder contentTypes.");
+        // Optional: Save the corrected structure back to metadata if desired (adds DB write)
+        // await db.update(sources).set({ metadata: sourceRecord.metadata }).where(eq(sources.id, sourceId));
+    }
+    // --- End NEW Robust Correction Logic ---
+
+    // Iterate through the NOW CORRECTED structure blocks to populate the final visualsMap
+    aiStructure.structure.forEach(block => {
+        if (block.contentType === 'visual_placeholder' && block.placeholderId) {
+            // Use the placeholderId FROM THE STRUCTURE to find the fetched visual data using the Map
+            const matchingVisual = fetchedVisualsByDbId.get(block.placeholderId);
+            if (matchingVisual) {
+                // Add to the final map using the structure's placeholderId as the key
+                visualsMap.set(block.placeholderId, matchingVisual);
+            } else {
+                // Log a warning if a placeholder in the structure doesn't have matching visual data
+                console.warn(`[Worker:AssembleNote] Warning: No matching visual data found in DB for placeholderId: ${block.placeholderId} found in structure for source ${sourceId}`);
+            }
+        }
+    });
+    // --- END MODIFIED LOGIC (Now correctly ordered) ---
+
+    // <<< --- ADD LOGGING HERE --- >>>
+    console.log(`[Worker:AssembleNote] Final visualsMap keys before Object.fromEntries: ${Array.from(visualsMap.keys()).join(', ')}`);
+    console.log(`[Worker:AssembleNote] Final visualsMap size: ${visualsMap.size}`);
+    // <<< ------------------------ >>>
 
     // Prepare data for the main template
     const templateData = {

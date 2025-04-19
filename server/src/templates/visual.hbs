@@ -1,0 +1,21 @@
+<figure class="my-6 bg-muted p-4 rounded-lg overflow-hidden">
+  <img 
+    src="{{imageUrl}}" 
+    alt="{{altText}}" 
+    class="w-full h-auto object-contain max-h-96 rounded-md shadow-sm border border-border"
+    loading="lazy"
+  >
+  <figcaption class="mt-3 text-sm text-muted-foreground">
+    <p class="italic">{{altText}}</p>
+    {{#if sourceUrl}}
+      <cite class="block mt-1">
+        Source: 
+        <a href="{{sourceUrl}}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">
+          {{sourceTitle}}
+        </a>
+      </cite>
+    {{else}}
+      <cite class="block mt-1">Source: {{sourceTitle}}</cite>
+    {{/if}}
+  </figcaption>
+</figure> 

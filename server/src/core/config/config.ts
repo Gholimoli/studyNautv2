@@ -25,6 +25,9 @@ const envSchema = z.object({
   SERPAPI_API_KEY: z.string().optional(),
   ELEVENLABS_API_KEY: z.string().optional(),
 
+  // Add Serper API Key
+  SERPER_API_KEY: z.string().optional(),
+
   // Supabase (Optional, if used for storage)
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_KEY: z.string().optional(),
@@ -64,6 +67,7 @@ export const config = {
     mistralApiKey: validatedEnv.MISTRAL_API_KEY,
     serpapiKey: validatedEnv.SERPAPI_API_KEY,
     elevenlabsApiKey: validatedEnv.ELEVENLABS_API_KEY,
+    serperApiKey: validatedEnv.SERPER_API_KEY,
   },
 
   supabase: {

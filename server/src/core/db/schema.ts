@@ -4,7 +4,7 @@ import { relations } from 'drizzle-orm';
 // --- Enums --- 
 export const sourceTypeEnum = pgEnum('source_type', ['YOUTUBE', 'TEXT', 'AUDIO', 'PDF', 'IMAGE']);
 export const processingStatusEnum = pgEnum('processing_status', ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']);
-export const visualStatusEnum = pgEnum('visual_status', ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']);
+export const visualStatusEnum = pgEnum('visual_status', ['PENDING', 'PENDING_GENERATION', 'PROCESSING', 'COMPLETED', 'FAILED', 'NO_IMAGE_FOUND']);
 // TODO: Add processingStageEnum later as stages become clearer
 
 // --- Tables --- 
@@ -51,10 +51,14 @@ export const visuals = pgTable('visuals', {
   id: serial('id').primaryKey(),
   sourceId: integer('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
   placeholderId: varchar('placeholder_id', { length: 255 }).notNull(),
+  concept: text('concept').notNull(),
   description: text('description').notNull(),
   searchQuery: text('search_query'),
   status: visualStatusEnum('status').default('PENDING').notNull(),
   imageUrl: varchar('image_url', { length: 2048 }),
+  altText: text('alt_text'),
+  sourceUrl: text('source_url'),
+  sourceTitle: text('source_title'),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

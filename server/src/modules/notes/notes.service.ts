@@ -58,11 +58,8 @@ export async function getUserNotes(
     console.log(`[getUserNotes] Applying filter for folderId: ${folderId}`);
     conditions.push(eq(notes.folderId, folderId));
   } else {
-    // Potentially handle case where NO folderId is passed (e.g., show unfiled?)
-    // For now, if folderId is undefined, we don't add a folder filter, showing all.
-    // If you want to filter for NULL folderId when none is provided, add:
-    // console.log("[getUserNotes] Applying filter for NULL folderId");
-    // conditions.push(sql`${notes.folderId} is null`);
+    console.log("[getUserNotes] No folderId provided, applying filter for NULL folderId.");
+    conditions.push(sql`${notes.folderId} is null`);
   }
   const whereCondition = and(...conditions);
 

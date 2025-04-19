@@ -30,24 +30,44 @@ export interface IAiProvider {
 
 // Schema for a single block in the lesson structure
 export const lessonBlockSchema = z.object({
-  type: z.enum(['heading', 'subheading', 'paragraph', 'bullet_list', 'key_term', 'visual_placeholder']), // Added visual_placeholder
-  content: z.string().nullable().optional(), // Allow content to be null or optional
-  level: z.number().nullable().optional(), // Allow null for level as well, keep optional
-  items: z.array(z.string()).nullable().optional(), // Allow null for items, keep optional
-  placeholderId: z.string().nullable().optional(), // Allow null for placeholderId, keep optional
+  contentType: z.enum([
+    'heading',
+    'paragraph',
+    'bullet_list',
+    'code_block',
+    'advanced_code_block',
+    'definition',
+    'key_takeaway_box',
+    'callout_info',
+    'visual_placeholder',
+    'introduction',
+    'explanation',
+    'example',
+  ]),
+  content: z.string().nullable().optional(),
+  level: z.number().nullable().optional(), // Heading level (1, 2, 3...)
+  items: z.array(z.string()).nullable().optional(), // Only for 'bullet_list'
+  keyPoints: z.array(z.string()).nullable().optional(), // Added: Only for 'key_takeaway_box'
+  placeholderId: z.string().nullable().optional(), // Only for 'visual_placeholder'
 });
 export type LessonBlock = z.infer<typeof lessonBlockSchema>;
 
 // Schema for the overall lesson structure returned by AI
 export const aiStructuredContentSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty'),
-  summary: z.string().nullable().optional(), // Allow null or undefined
+  summary: z.string().nullable().optional(),
   structure: z.array(lessonBlockSchema),
-  visualOpportunities: z.array(z.object({ 
-      placeholderId: z.string(), // ID matching a placeholder in the structure
-      description: z.string(),   // Description of the desired visual
-      searchQuery: z.string().optional(), // Optional optimized query for image search
-  })).nullable().optional(), // Allow null or undefined
+  visualOpportunities: z
+    .array(
+      z.object({
+        placeholderId: z.string(), // ID matching a placeholder in the structure
+        concept: z.string(), // Added: Specific concept the visual illustrates
+        description: z.string(), // Detailed description of the desired visual
+        searchQuery: z.string(), // Changed: Now required - Optimized query for image search
+      })
+    )
+    .nullable()
+    .optional(),
 });
 export type AiStructuredContent = z.infer<typeof aiStructuredContentSchema>;
 

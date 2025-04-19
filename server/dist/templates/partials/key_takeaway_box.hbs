@@ -1,0 +1,11 @@
+<div class="key-takeaway-box bg-muted border-l-4 border-primary p-4 rounded-md my-4">
+    <div class="flex items-center mb-2">
+      {{!-- Icon Placeholder: e.g., <Lightbulb className="h-5 w-5 mr-2 text-primary" /> --}}
+      <h4 class="text-lg font-semibold text-primary">Key Takeaways</h4>
+    </div>
+    <ul class="list-disc pl-5 space-y-1.5 text-base text-foreground"> {{!-- Increased spacing, ensure foreground color --}}
+        {{#each keyPoints}}
+        <li class="mb-1">{{{this}}}</li> {{!-- Added small bottom margin to list items --}}
+        {{/each}}
+    </ul>
+</div>

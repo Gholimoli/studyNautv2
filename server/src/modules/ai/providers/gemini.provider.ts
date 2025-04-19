@@ -5,7 +5,7 @@ import { AppError } from '@/core/errors/app.error';
 import { logger } from '@/core/logger/logger';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-1.5-flash-latest'; // Or your actual default
+const DEFAULT_MODEL = 'gemini-2.0-flash'; // Use Flash 2 as default
 const DEFAULT_VISION_MODEL = 'gemini-pro-vision'; // Or your actual default vision model
 
 export class GeminiProvider implements IAiProvider {
