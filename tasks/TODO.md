@@ -118,12 +118,13 @@
 - [x] **Documentation Consistency:** Confirmed `.mdc` rules are primary source for remaining docs.
 - [x] **Configuration Validation:** Added Zod validation for env vars in `server/src/core/config/config.ts`.
 - [x] **Type Safety & Sharing:** Moved shared types to `@shared/types` and updated imports.
-- [-] **Refactor Large Files:** Identifying files > 300 LOC and plan refactoring (e.g., worker jobs, services). (Starting)
+- [x] Refactor Large Files: Identifying files > 300 LOC and plan refactoring (e.g., worker jobs, services). (Worker structure confirmed good)
 - [ ] **Frontend Styling Consistency:** Spot-check components against UI/Theme guidelines.
 
 ## Low Priority Code Review Cleanup
 
 - [ ] **Naming Conventions:** Quick scan for deviations.
+- [x] Refactor Large Files: Identifying files > 300 LOC and plan refactoring (e.g., worker jobs, services). (Worker structure confirmed good)
 - [ ] **Dependency Review:** Check for unused/outdated packages.
 - [ ] **`.gitignore` Completeness:** Add standard ignores.
 - [ ] **Magic Strings/Constants:** Refactor literals into constants.
@@ -139,7 +140,46 @@
 
 - [x] Fix linter errors and refactor `mistral.provider.ts` to align with `IOcrProvider` interface.
 - [x] Fix `NoteListItem` import and `tag` type error in `NoteCard.tsx`.
+- [x] Refactor `server/src/core/worker.ts` into smaller, dedicated job handlers (verified existing structure matches target).
 
 ## To Do
 
 - [ ] Refactor `server/src/core/worker.ts` into smaller, dedicated job handlers (e.g., in `server/src/core/jobs/`).
+
+## Note Quality Enhancement Plan (July 2025)
+
+**Objective:** Significantly improve the structure, visual integration, and styling of generated HTML notes to match high-quality examples.
+
+### Phase 1: Refining AI Analysis and Content Structure
+- [x] **Task 1.1:** Enhance `GENERATE_LESSON_STRUCTURE` prompt in `server/src/modules/ai/prompts/prompts.ts` to request richer JSON output (main topic, summaries, key points, content types, detailed visual suggestions with queries).
+- [x] **Task 1.2:** Update TypeScript types (`server/src/types/ai.types.ts`) to match the new AI response structure (`LessonBlock`, etc.).
+- [x] **Task 1.3:** Implement Zod validation in `AiService` to parse and validate the enhanced AI response structure. *(Existing validation logic in `AiService` uses the updated schema)*
+
+### Phase 2: Improving Visual Element Pipeline
+- [ ] **Task 2.1:** Modify `PROCESS_VISUAL_PLACEHOLDERS` job (`server/src/core/jobs/processVisualPlaceholders.job.ts`) to store detailed visual info (concept, description, query) in the `visuals` DB table.
+- [ ] **Task 2.2:** Update the `visuals` database schema (Drizzle schema: `server/src/core/db/schema.ts`) to include new fields (`description`, `searchQuery`, `altText`, `sourceUrl`, `sourceTitle`) and run migrations.
+- [ ] **Task 2.3:** Refine `GENERATE_VISUAL` job (`server/src/core/jobs/generateVisual.job.ts`):
+    - [ ] Use the stored `searchQuery` for SerpAPI.
+    - [ ] Retrieve multiple image candidates.
+    - [ ] Implement image selection logic (scoring based on relevance).
+    - [ ] Store selected image details (URL, alt, source) in the `visuals` record.
+    - [ ] Update `visuals.status` correctly (`COMPLETED`, `FAILED`, `NO_IMAGE_FOUND`).
+
+### Phase 3: Advanced HTML Generation and Styling
+- [x] **Task 3.1:** Overhaul `ASSEMBLE_NOTE` job (`server/src/core/jobs/assembleNote.job.ts`):
+    - [x] Implement/integrate a server-side templating engine (e.g., Handlebars).
+    - [x] Create HTML templates/partials for note structure (using semantic HTML and Tailwind).
+    - [x] Design partials for different `contentType`s (key takeaways, code blocks, definitions).
+    - [x] Integrate completed visuals (`<figure>`, `<img>`, `<figcaption>`, `<cite>`).
+    - [x] Render styled placeholders for failed/missing visuals.
+    - [x] Ensure templates use styles from `theme.mdc` / `ui-guidelines.mdc`.
+    - [x] **Fix Handlebars rendering error (`TypeError: options.inverse is not a function`)**
+- [ ] **Task 3.2:** Define Tailwind class combinations for new content blocks (callouts, code blocks, placeholders) within the HTML templates/generation logic.
+
+### Phase 4: Documentation and Iteration
+- [-] **Task 4.1:** Update relevant documentation (`ai-prompts.mdc`, `architecture/job_pipeline.mdc`, `architecture/database.mdc`) - *Partially done*.
+- [ ] **Task 4.2:** Thoroughly test the enhanced pipeline with diverse inputs and refine prompts/logic/templates based on output quality.
+
+## New Tasks / Issues
+- [ ] **Investigate SerpAPI Account Limits:** Image search in `GENERATE_VISUAL` job fails due to `"error": "Your account has run out of searches."`. Check API key, account status, and usage limits. Consider adding fallback or alternative image sources.
+- [x] **Fix Frontend Note Display:** Note detail page showed "No content available". Resolved by rendering `htmlContent` via `dangerouslySetInnerHTML` instead of using `ReactMarkdown` on `markdownContent`.

@@ -25,7 +25,8 @@ This document summarizes critical insights and challenges encountered during the
 
 *   **Zod `optional().transform()`:** Be cautious when using `.optional().transform()` in Zod schemas, especially with boolean-like inputs (e.g., 'true'/'false'). The transform function still runs even if the field is optional and not present in the input, receiving `undefined` as its value. This can lead to unexpected default values (e.g., `undefined === 'true'` resulting in `false`) if not handled explicitly within the transform. Always check for `undefined` in the transform if the preceding `.optional()` is intended to mean "no value provided".
 *   **List vs. Detail Data Consistency:** Ensure that data required for list item displays (like `NoteCard`) is included in the data fetched for the list view (e.g., `NoteListItem` type and the corresponding API endpoint). Avoid relying solely on detail view data (`NoteDetail`) for information needed in summaries or list cards, as this can lead to missing information (e.g., `languageCode` initially missing from `GET /api/notes`).
-*   **Worker Process & Development Restarts:** The `pnpm dev` script in the `server` package uses `concurrently` to run both the API server (`dev:server`) and the BullMQ worker (`dev:worker`). Both of these sub-scripts utilize `nodemon`, which watches for file changes. Therefore, **changes made to worker code (`worker.ts`) or its dependencies *should* trigger an automatic restart of the worker process** during development when using `pnpm dev`. While generally reliable, if unexpected behavior occurs after code changes, manually restarting the `pnpm dev` process (`Ctrl+C` and run again) remains a valid troubleshooting step.
+*   **Worker Restart Requirement:** **CRITICAL:** Changes made to the worker code (`worker.ts`) or its direct dependencies **do not take effect** until the worker Node.js process is manually restarted. This is a frequent source of confusion when debugging job logic. (Restart via `Ctrl+C` and `pnpm dev` locally).
+*   **Worker Path Resolution:** TypeScript path aliases (`@/...`) might not resolve correctly within the worker's execution context (`ts-node -r tsconfig-paths/register`) for all module locations, even if the `tsconfig.json` paths seem correct. This can lead to runtime "Cannot find module" errors despite passing linter checks or vice-versa. Using relative paths can sometimes be a workaround, but the root cause might be in the build/execution setup. Verifying the exact file location is crucial.
 *   **Debugging Asynchronous Flows:** Requires extensive logging (`console.log` in the worker is effective) and potentially inspecting the job queue state (e.g., via Redis CLI) and database records (`sources`, `visuals`, `notes` tables).
 *   **API/Schema Mismatches:** Discrepancies between frontend expectations (TanStack Query), API responses (Express routes), shared type definitions (`shared/` package or duplicated types), and database schemas (`schema.ts`) are common sources of bugs. Consistent use of shared types and end-to-end testing helps.
 *   **Environment Consistency:** Ensuring API keys and database URLs are correctly set up in `.env` files for both local development and deployment environments is crucial.
@@ -46,6 +47,9 @@ This document summarizes critical insights and challenges encountered during the
 *   **Error Handling:** External APIs can fail for various reasons (rate limits, invalid input, service outages). Implement retries (BullMQ offers this) and fallback logic (e.g., primary -> fallback AI provider).
 *   **Prompt Engineering:** The quality of AI output heavily depends on well-structured prompts. Iterative refinement is necessary. Requesting structured output (JSON) simplifies processing.
 *   **Image Search Quality:** SerpAPI query generation needs to be specific. Using AI to generate detailed search phrases from context improves relevance.
+*   **API Reliability & Fallbacks:** External APIs (like Mistral OCR) can have intermittent failures (e.g., 520 errors) or specific limitations (e.g., 422 errors for certain input types/formats). Implementing robust fallback logic (e.g., `OcrService` falling back from Mistral to Gemini) is essential for pipeline reliability.
+*   **API Behavior Verification:** Providers might handle different inputs differently (e.g., Mistral OCR requiring raw buffer for PDF but `data_uri` for images). It's important to test and verify the specific API requirements for each use case.
+*   **AI Models Evolve Quickly:** Google Gemini and OpenAI models undergo frequent updates. Adapting to new capabilities, response formats, and token limits is an ongoing process.
 
 ### Solutions Implemented
 
@@ -156,4 +160,25 @@ This document summarizes critical insights and challenges encountered during the
 ### Solutions Implemented
 
 *   Added Zod schema validation to `server/src/core/config/config.ts`.
-*   Refactored API provider files and utilities to import and use the validated `config` object instead of `process.env` directly. 
+*   Refactored API provider files and utilities to import and use the validated `config` object instead of `process.env` directly.
+
+## 13. Handlebars Rendering & Job State
+
+### Insights
+
+*   **Handlebars Helper Scope:** Handlebars helpers can be called in **block** (`{{#helper}}...{{/helper}}`) or **inline** (`{{helper}}` or `{{#if (helper ...)}}`) contexts. Helpers intended for block usage *must* handle the `options` argument correctly, specifically checking for `options.fn` and `options.inverse`. Attempting to access `options.inverse` when the helper is called inline (where `options` isn't passed as the last argument) will cause a `TypeError: options.inverse is not a function`.
+    *   **Solution:** Implement robust helpers that check for the existence and type of `options` and `options.fn` to determine if they are being called inline or as a block, and handle both cases appropriately.
+*   **Frontend/Backend Data Mismatch:** Ensure the frontend rendering logic matches the data format provided by the backend. If the backend saves pre-rendered HTML (`htmlContent`), the frontend should render it using `dangerouslySetInnerHTML`, not attempt to process it as Markdown (`markdownContent`) with libraries like `react-markdown`.
+*   **BullMQ Job `retry()` Behavior:** The `job.retry()` method might appear to fail silently if the job fails again extremely quickly after being moved to the `waiting` state. The job might transition from `failed` -> `waiting` -> `active` -> `failed` faster than external checks can observe the intermediate `waiting` state. Checking the job's state immediately after calling `retry()` within the same script might report `active` or even `failed`, which can be misleading.
+
+### Challenges Faced
+
+*   **Persistent `TypeError: options.inverse is not a function`:** The `ASSEMBLE_NOTE` job repeatedly failed with this error during Handlebars rendering. Initial fixes targeting a `findVisual` helper didn't resolve it. The root cause was traced to the `eq` helper potentially being called with invalid data during the rendering of the `section.hbs` partial.
+*   **Job Retries Appearing Ineffective:** Attempts to retry the failed `ASSEMBLE_NOTE` job using `job.retry()` repeatedly left the job in the `failed` state in Redis, making it seem like the retry mechanism was broken.
+*   **Frontend Note Display Empty:** The note detail page showed "No content available" despite the backend job completing successfully and saving HTML content to the database.
+
+### Solutions Implemented
+
+*   Made the `eq` Handlebars helper in `assembleNote.job.ts` robust by adding checks for `null`/`undefined` arguments and handling block vs. inline calls correctly.
+*   Modified the frontend `NoteDetailPage.tsx` component to remove `ReactMarkdown` and instead render the `note.htmlContent` field using `dangerouslySetInnerHTML`.
+*   Created and used a `delete-job.ts` script to remove potentially corrupted/stuck failed jobs from the queue before resubmitting content. 

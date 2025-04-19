@@ -4,8 +4,114 @@ import { sources, visuals, notes, tags, notesToTags } from '../db/schema';
 import { eq, sql, ilike } from 'drizzle-orm';
 import { AiStructuredContent, LessonBlock } from '../../modules/ai/types/ai.types';
 import { AssembleNotePayload } from './job.definition';
-import { marked } from 'marked'; // For Markdown to HTML conversion
 import { aiService } from '../../modules/ai/ai.service'; // Import AiService
+
+// --- Add Handlebars and FS imports ---
+import * as Handlebars from 'handlebars';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+// -------------------------------------
+
+// --- Helper function for reading files with retry ---
+async function readFileWithRetry(filePath: string, retries = 2, delay = 300): Promise<string> {
+  let attempts = 0;
+  while (attempts <= retries) {
+    try {
+      return await fs.readFile(filePath, 'utf8');
+    } catch (error: any) {
+      if (error.code === 'ENOENT' && attempts < retries) {
+        attempts++;
+        console.warn(`[Worker:AssembleNote] Template read failed (${error.code}), attempt ${attempts}/${retries}. Retrying in ${delay}ms... Path: ${filePath}`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error(`[Worker:AssembleNote] Final attempt failed to read template file: ${filePath}`, error);
+        throw error; // Re-throw the error if it's not ENOENT or retries exhausted
+      }
+    }
+  }
+  // Should not be reached if retries exhausted, as error is thrown above
+  throw new Error(`Failed to read file ${filePath} after ${retries} retries.`);
+}
+// --------------------------------------------------
+
+// --- Template Compilation (Load once, reuse) ---
+let compiledTemplates: {
+  main?: HandlebarsTemplateDelegate<any>;
+} = {};
+let templatesLoaded = false;
+
+async function loadAndCompileTemplates() {
+  if (templatesLoaded) return;
+  try {
+    console.log('[Worker:AssembleNote] Loading and compiling Handlebars templates...');
+    
+    const cwd = process.cwd();
+    const dirname = __dirname;
+    console.log(`[Worker:AssembleNote] Current working directory (cwd): ${cwd}`); 
+    console.log(`[Worker:AssembleNote] Directory of current file (__dirname): ${dirname}`); 
+
+    // Revert to resolving path relative to the *compiled* file in dist/
+    const templateDir = path.resolve(__dirname, '../../templates'); 
+    console.log(`[Worker:AssembleNote] Attempting to load templates from resolved path (relative to dist): ${templateDir}`);
+
+    // Log directory contents before trying to read files
+    try {
+        const dirContents = await fs.readdir(templateDir);
+        console.log(`[Worker:AssembleNote] Contents of ${templateDir}:`, dirContents);
+    } catch (readDirError) {
+        console.error(`[Worker:AssembleNote] FAILED to read directory ${templateDir}:`, readDirError);
+        throw new Error(`Failed to read template directory: ${readDirError}`);
+    }
+
+    // Read files using the retry helper
+    const mainTemplateSource = await readFileWithRetry(path.join(templateDir, 'main-note.hbs'));
+    const sectionPartialSource = await readFileWithRetry(path.join(templateDir, 'section.hbs'));
+    const visualPartialSource = await readFileWithRetry(path.join(templateDir, 'visual.hbs'));
+    const placeholderPartialSource = await readFileWithRetry(path.join(templateDir, 'placeholder.hbs'));
+
+    // Register Partials
+    Handlebars.registerPartial('section', sectionPartialSource);
+    Handlebars.registerPartial('visual', visualPartialSource);
+    Handlebars.registerPartial('placeholder', placeholderPartialSource);
+
+    // Register Helpers
+    Handlebars.registerHelper('eq', function (this: any, a: unknown, b: unknown, options?: Handlebars.HelperOptions) {
+      // Robust check for block vs inline
+      if (options && typeof options.fn === 'function') {
+        // Block form
+        return a == b ? options.fn(this) : options.inverse?.(this) ?? '';
+      } else {
+        // Inline form - return boolean
+        return a == b;
+      }
+    });
+
+    // Helper to find the visual object by placeholderId
+    Handlebars.registerHelper('findVisual', function (this: any, placeholderId: string, visualsMap: Record<string, any>, options?: Handlebars.HelperOptions) {
+        const visual = visualsMap && placeholderId ? visualsMap[placeholderId] : null;
+        // Robust check for block vs inline
+        if (options && typeof options.fn === 'function') {
+            // Block form
+            return visual ? options.fn(visual) : options.inverse?.(this) ?? '';
+        } else {
+            // Inline form - return the visual object itself or null (adjust if boolean needed)
+            return visual;
+        }
+    });
+    // Add more helpers as needed
+
+    // Compile Main Template
+    compiledTemplates.main = Handlebars.compile(mainTemplateSource);
+
+    templatesLoaded = true;
+    console.log('[Worker:AssembleNote] Handlebars templates loaded and compiled successfully.');
+  } catch (error) {
+    console.error('[Worker:AssembleNote] CRITICAL: Failed to load or compile Handlebars templates:', error);
+    // Prevent job execution if templates fail to load
+    templatesLoaded = false; 
+  }
+}
+// -----------------------------------------------
 
 /**
  * Job processor for assembling the final note content.
@@ -13,6 +119,32 @@ import { aiService } from '../../modules/ai/ai.service'; // Import AiService
 export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<void> {
   const { sourceId } = job.data;
   console.log(`[Worker:AssembleNote] Starting job for source ID: ${sourceId}`);
+
+  // --- REMOVE DIAGNOSTIC CHECKS --- 
+  /*
+  try {
+    const templateDir = path.resolve(__dirname, '../../templates');
+    const mainTemplatePath = path.join(templateDir, 'main-note.hbs');
+    console.log(`[Worker:AssembleNote] DIAGNOSTIC: Checking access for path: ${mainTemplatePath}`);
+    await fs.access(mainTemplatePath, fs.constants.R_OK); // Check read access
+    console.log(`[Worker:AssembleNote] DIAGNOSTIC: fs.access check PASSED for ${mainTemplatePath}`);
+    const dirContents = await fs.readdir(templateDir);
+    console.log(`[Worker:AssembleNote] DIAGNOSTIC: Contents of ${templateDir}:`, dirContents);
+  } catch (diagError) {
+      console.error(`[Worker:AssembleNote] DIAGNOSTIC: fs.access or fs.readdir FAILED:`, diagError);
+      // Optional: re-throw or handle differently if needed, but let the original logic proceed for now
+      // throw new Error("Diagnostic file access check failed"); 
+  }
+  */
+  // --- END REMOVED DIAGNOSTIC CHECKS ---
+
+  // Ensure templates are loaded before proceeding
+  if (!templatesLoaded) {
+    await loadAndCompileTemplates();
+  }
+  if (!templatesLoaded || !compiledTemplates.main) {
+    throw new Error('Handlebars templates could not be loaded or compiled.');
+  }
 
   let sourceRecord: any;
   try {
@@ -38,69 +170,35 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
 
     const aiStructure = (sourceRecord as any).metadata.aiStructure as AiStructuredContent;
     const fetchedVisuals = (sourceRecord as any).visuals || [];
-    const visualMap = new Map<string, { url: string | null, status: string }>();
+    const visualsMap = new Map<string, typeof fetchedVisuals[0]>(); 
     fetchedVisuals.forEach((v: any) => {
         if(v.placeholderId) {
-            visualMap.set(v.placeholderId, { url: v.imageUrl, status: v.status });
+            visualsMap.set(v.placeholderId, v);
         }
     });
 
-    let markdownContent = `# ${aiStructure.title}\n\n`;
-    if (aiStructure.summary) {
-        markdownContent += `*${aiStructure.summary}*\n\n`;
-    }
+    // Prepare data for the main template
+    const templateData = {
+        title: aiStructure.title,
+        summary: aiStructure.summary,
+        structure: aiStructure.structure, // Pass the whole structure array
+        visuals: Object.fromEntries(visualsMap) // Convert map to object for Handlebars context
+    };
 
-    for (const block of aiStructure.structure) {
-        switch (block.type) {
-            case 'heading':
-                markdownContent += `${'#'.repeat(block.level || 1)} ${block.content ?? ''}\n\n`;
-                break;
-            case 'subheading': 
-                markdownContent += `## ${block.content ?? ''}\n\n`;
-                break;
-            case 'paragraph':
-                markdownContent += `${block.content ?? ''}\n\n`;
-                break;
-            case 'bullet_list':
-                block.items?.forEach(item => markdownContent += `* ${item}\n`);
-                markdownContent += '\n';
-                break;
-            case 'key_term':
-                markdownContent += `**${block.content ?? ''}**\n\n`;
-                break;
-            case 'visual_placeholder':
-                if (block.placeholderId) {
-                    const visual = visualMap.get(block.placeholderId);
-                    if (visual?.status === 'COMPLETED' && visual.url) {
-                        markdownContent += `![${block.content || 'Visual Content'}](${visual.url})\n*${block.content || 'Visual Content'}*\n\n`;
-                    } else {
-                        markdownContent += `\n<div class="p-4 border border-dashed border-muted-foreground rounded-md my-4 text-center text-muted-foreground">`;
-                        markdownContent += `<p class="font-semibold">Visual Placeholder: ${block.content || block.placeholderId}</p>`;
-                        markdownContent += `<p class="text-sm">${visual?.status === 'FAILED' ? '(Image generation failed)' : '(Image pending or failed)'}</p>`;
-                        markdownContent += `</div>\n\n`; // Use HTML for better fallback styling
-                    }
-                } else {
-                     markdownContent += `\n<div class="p-4 border border-dashed border-destructive rounded-md my-4 text-center text-destructive">[Visual Placeholder: Invalid ID]</div>\n\n`;
-                }
-                break;
-        }
-    }
-
-    marked.setOptions({
-        gfm: true,
-        breaks: true,
-    });
-    const htmlContent = marked.parse(markdownContent) as string;
+    // Render HTML using Handlebars
+    const htmlContent = compiledTemplates.main!(templateData); 
 
     // --- Generate and Save Tags --- 
     let generatedTagIds: number[] = [];
     try {
-      // Determine language code (ISO 639-3) from the dedicated column *before* generating tags
-      const finalLanguageCode = sourceRecord.languageCode || 'eng'; // Default to 'eng'
+      // Generate tags from the original extracted text, not generated markdown
+      const sourceTextForTags = sourceRecord.extractedText || ''; 
+      const finalLanguageCode = sourceRecord.languageCode || 'eng'; 
       console.log(`[Worker:AssembleNote] Using languageCode (ISO 639-3): ${finalLanguageCode} from source column for tag generation for source ID: ${sourceId}`);
 
       console.log(`[Worker:AssembleNote] Generating tags for source ID: ${sourceId}...`);
-      const generatedTagNames = await aiService.generateTags(markdownContent, finalLanguageCode);
+      // Pass sourceTextForTags instead of markdownContent
+      const generatedTagNames = await aiService.generateTags(sourceTextForTags, finalLanguageCode);
       console.log(`[Worker:AssembleNote] Generated ${generatedTagNames.length} tag names:`, generatedTagNames);
 
       if (generatedTagNames.length > 0) {
@@ -176,7 +274,7 @@ export async function assembleNoteJob(job: Job<AssembleNotePayload>): Promise<vo
             userId: sourceRecord!.userId, // Non-null after check
             title: aiStructure.title,
             summary: aiStructure.summary,
-            markdownContent: markdownContent,
+            markdownContent: null, // Set markdownContent to null as we generate HTML directly
             htmlContent: htmlContent,
             favorite: false,
             sourceType: finalSourceType,

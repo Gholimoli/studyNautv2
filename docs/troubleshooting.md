@@ -83,6 +83,15 @@ This guide addresses common issues encountered in the Studynaut application and 
 *   **Problem**: Job fails with `ENOENT: no such file or directory` when processing a file (e.g., `stat 'user_X/audio/...'` fails).
     *   **Cause**: The job is treating a cloud storage path (Supabase path) as a local filesystem path. Files in cloud storage must be explicitly downloaded first.
     *   **Solution**: Modify the job logic (`processAudioTranscriptionJob` in this case) to use `StorageService.downloadFile` to download the file from Supabase to a temporary local path *before* attempting to process it. Ensure the temporary file is deleted afterwards (using a `finally` block).
+*   **Problem**: Handlebars `TypeError: options.inverse is not a function` during job processing (e.g., `ASSEMBLE_NOTE` job).
+    *   **Cause**: A Handlebars helper designed for block usage (`{{#helper}}...{{/helper}}`) is likely being called inline (`{{helper}}` or within another expression like `{{#if (helper ...)}}`). In inline calls, the `options` object isn't passed correctly, causing the error when `options.inverse` is accessed.
+    *   **Solution 1**: Find the incorrect inline usage in the templates (`.hbs` files) using `grep -R --line-number --color -E '{{\s*(eq|findVisual|ne|not|and|or)\b' src/templates` (adjust helper names as needed) and change it to the block form (`{{#helper}}...{{/helper}}`).
+    *   **Solution 2**: Modify the helper implementation in the job file (e.g., `assembleNote.job.ts`) to be robust. Check if `options && typeof options.fn === 'function'` to determine if it's a block call. Handle both inline (e.g., return a boolean or value) and block (call `options.fn(this)` or `options.inverse(this)`) scenarios.
+*   **Problem**: BullMQ job retry (`job.retry()`) seems ineffective; job remains in `failed` state.
+    *   **Cause 1**: The job might be failing again immediately after being retried, faster than the state can be observed externally.
+    *   **Cause 2**: Potential state inconsistency or lock associated with the specific job ID in Redis.
+    *   **Cause 3**: Maximum retry attempts for the job may have been exceeded.
+    *   **Solution**: Verify the job state directly in Redis (`redis-cli ZSCORE bull:<queue_name>:failed <job_id>`) after attempting a retry. Check worker logs immediately. Consider using a script to explicitly delete the problematic job (`job.remove()`) and resubmitting the original task.
 
 ## API Integration Issues
 
@@ -91,6 +100,21 @@ This guide addresses common issues encountered in the Studynaut application and 
     *   **Solution**: **Check API Key Status:** Visit the respective provider's dashboard (Google AI Studio, OpenAI Platform, SerpAPI, ElevenLabs) to ensure the key is active, has the necessary permissions/APIs enabled, and has sufficient credits/quota.
     *   **Solution**: **Log Request/Response:** Temporarily add logging within the provider implementation (`server/src/modules/ai/providers/` or `utils/`) to see the exact request being sent and the raw error response received from the API.
     *   **Solution**: **Check Provider Libraries:** Ensure the correct SDKs/libraries are installed (`@google/generative-ai`, `openai`, `serpapi`, etc.).
+
+### OpenAI API
+
+### OCR Provider Issues (Mistral/Gemini)
+
+- **Problem**: PDF processing fails with Mistral error (e.g., 520 Cloudflare error).
+  - **Solution**: This seems to be an intermittent issue with the Mistral API when processing raw PDF buffers. The system is designed to automatically fall back to the Gemini provider, which should succeed. Monitor worker logs for confirmation of fallback.
+
+- **Problem**: Image processing fails with Mistral error (e.g., 422 Unprocessable Entity).
+  - **Solution**: This appears to be an issue with how Mistral handles `data_uri` for images via its API. The system will automatically fall back to the Gemini provider, which handles images correctly. Monitor worker logs for confirmation.
+
+- **Problem**: OCR fallback doesn't seem to trigger (worker throws error like "Primary provider returned null...").
+  - **Solution**: Ensure `FALLBACK_OCR_PROVIDER=gemini` is correctly set in `server/.env` (note: key is `gemini`, not a specific model). Verify `GEMINI_API_KEY` is also set. Restart the worker process after checking `.env`.
+
+### SerpAPI
 
 ## Frontend Issues (`client/`)
 
@@ -115,6 +139,9 @@ This guide addresses common issues encountered in the Studynaut application and 
 *   **Problem**: API calls fail with CORS errors.
     *   **Solution**: Ensure the backend server (`server/src/server.ts`) has correctly configured CORS middleware (`cors` package) to allow requests from the frontend origin (`http://localhost:5173`).
     *   **Solution**: Verify the `proxy` setting in `client/vite.config.ts` if you are using Vite's proxy feature.
+*   **Problem**: Note Detail page shows "No content available" or renders raw HTML tags instead of formatted content.
+    *   **Cause**: Mismatch between backend data format and frontend rendering. The backend saves pre-rendered HTML (`htmlContent`), but the frontend component (`NoteDetailPage.tsx` or similar) is attempting to render Markdown (`markdownContent`) using a library like `react-markdown`.
+    *   **Solution**: Modify the frontend note detail component. Remove the Markdown rendering logic. Fetch the note data ensuring the `htmlContent` field is available. Render this field using `dangerouslySetInnerHTML={{ __html: note.htmlContent || '' }}` on a container element (e.g., a `div`). Ensure appropriate styling (e.g., using Tailwind Typography `prose` classes) is applied to the container for correct HTML rendering.
 
 ## Debugging Tips
 

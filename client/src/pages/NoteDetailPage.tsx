@@ -3,8 +3,6 @@ import { useParams } from '@tanstack/react-router';
 import { useGetNoteByIdQuery } from '@/hooks/useNotesQueries'; // Import the new hook
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import ReactMarkdown from 'react-markdown'; // Import the renderer
-import remarkGfm from 'remark-gfm'; // Import the GFM plugin
 import { Badge } from "@/components/ui/badge"; // Added Badge import
 import { Tags } from "lucide-react"; // Added Tags icon import
 
@@ -72,11 +70,12 @@ export function NoteDetailPage() {
             </div>
           )}
 
-          <div className="mt-6">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {note.markdownContent || 'No content available.'}
-            </ReactMarkdown>
-          </div>
+          <div 
+            className="mt-6 prose dark:prose-invert max-w-none" 
+            dangerouslySetInnerHTML={{
+              __html: note.htmlContent || '<p><em>No content available.</em></p>'
+            }}
+          />
         </article>
       )}
     </div>
