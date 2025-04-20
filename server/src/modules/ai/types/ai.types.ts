@@ -28,47 +28,76 @@ export interface IAiProvider {
 
 // --- Task-Specific AI Output Schemas (using Zod for validation) ---
 
-// Schema for a single block in the lesson structure
-export const lessonBlockSchema = z.object({
-  contentType: z.enum([
-    'heading',
-    'paragraph',
-    'bullet_list',
-    'code_block',
-    'advanced_code_block',
-    'definition',
-    'key_takeaway_box',
-    'callout_info',
-    'visual_placeholder',
-    'introduction',
-    'explanation',
-    'example',
-  ]),
-  content: z.string().nullable().optional(),
-  level: z.number().nullable().optional(), // Heading level (1, 2, 3...)
-  items: z.array(z.string()).nullable().optional(), // Only for 'bullet_list'
-  keyPoints: z.array(z.string()).nullable().optional(), // Added: Only for 'key_takeaway_box'
-  placeholderId: z.string().nullable().optional(), // Only for 'visual_placeholder'
-});
-export type LessonBlock = z.infer<typeof lessonBlockSchema>;
+// Define allowed content types as a Zod enum first
+const lessonBlockContentTypeSchema = z.enum([
+  'heading',
+  'paragraph',
+  'list',
+  'code_block',
+  'definition',
+  'key_takeaway_box',
+  'note_box',
+  'highlight_box',
+  'qa',
+  'visual_placeholder', // Placeholder inserted by AI during generation
+  'explanation',        // Added based on potential AI output
+  'example',            // Added based on potential AI output
+  'conclusion',         // Added based on potential AI output
+  'visual',             // Added for hydrated visuals
+  'placeholder',        // Added for failed/missing visuals
+]);
 
-// Schema for the overall lesson structure returned by AI
-export const aiStructuredContentSchema = z.object({
-  title: z.string().min(1, 'Title cannot be empty'),
-  summary: z.string().nullable().optional(),
-  structure: z.array(lessonBlockSchema),
-  visualOpportunities: z
-    .array(
-      z.object({
-        placeholderId: z.string(), // ID matching a placeholder in the structure
-        concept: z.string(), // Added: Specific concept the visual illustrates
-        description: z.string(), // Detailed description of the desired visual
-        searchQuery: z.string(), // Changed: Now required - Optimized query for image search
-      })
-    )
-    .nullable()
-    .optional(),
+// Infer the TypeScript type from the Zod enum
+type LessonBlockContentType = z.infer<typeof lessonBlockContentTypeSchema>;
+
+// Base schema for all lesson blocks
+const baseLessonBlockSchema = z.object({
+  contentType: lessonBlockContentTypeSchema,
+  content: z.string().optional(),       // Optional for container types like list, qa
+  items: z.array(z.string()).optional(), // For lists
+  question: z.string().optional(),      // For QA
+  answer: z.string().optional(),        // For QA
+  term: z.string().optional(),          // For definition
+  definition: z.string().optional(),    // For definition
+  level: z.number().int().min(1).max(6).nullable().optional(), // Allow null for level
+  language: z.string().optional(),      // For code blocks
+  placeholderId: z.string().optional(), // For visual_placeholder
+  description: z.string().optional(),   // For visual_placeholder, key_takeaway_box, note_box, highlight_box
+  // --- Added for hydrated/failed visuals ---
+  imageUrl: z.string().url().optional(), // For visual
+  altText: z.string().optional(),        // For visual
+  sourceUrl: z.string().url().optional(), // For visual
+  sourceTitle: z.string().optional(),    // For visual
+  reason: z.string().optional(),         // For placeholder
+  // ----------------------------------------
 });
+
+// Recursive type definition for LessonBlock
+export type LessonBlock = z.infer<typeof baseLessonBlockSchema> & {
+  subStructure?: LessonBlock[];
+};
+
+// Recursive schema for LessonBlock
+export const lessonBlockSchema: z.ZodType<LessonBlock> = baseLessonBlockSchema.extend(
+  {
+    subStructure: z.lazy(() => z.array(lessonBlockSchema)).optional(),
+  },
+);
+
+// Schema for the main AI-generated structure
+export const aiStructuredContentSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  structure: z.array(lessonBlockSchema), // Array of LessonBlocks
+  visualOpportunities: z.array(z.object({
+    placeholderId: z.string(),
+    concept: z.string(),
+    description: z.string(),
+    searchQuery: z.string(),
+  })).optional(), // Added visualOpportunities as optional array
+});
+
+// Type for the main AI-generated structure
 export type AiStructuredContent = z.infer<typeof aiStructuredContentSchema>;
 
 // Schema for a Quiz Question

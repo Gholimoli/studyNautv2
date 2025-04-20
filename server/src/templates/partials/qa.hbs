@@ -1,0 +1,16 @@
+{{!-- 
+  Partial: qa.hbs
+  Context: LessonBlock (this)
+  Renders a question-answer block.
+  Assumes Question is in 'title' and Answer in 'content'.
+--}}
+{{#if content}}
+<div class="my-6 space-y-1">
+  {{#if title}}
+    <p class="font-semibold text-foreground"><span class="font-bold mr-1">Q:</span>{{title}}</p>
+  {{/if}}
+  <div class="prose prose-sm max-w-none text-muted-foreground pl-4">
+    <span class="font-bold mr-1 text-foreground">A:</span>{{{content}}}
+  </div>
+</div>
+{{/if}} 

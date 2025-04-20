@@ -8,9 +8,9 @@ dotenv.config(); // Simplified call
 
 // Import your job processor functions (create these files later)
 import { processSourceTextJob } from '@/core/jobs/processSourceText.job';
-import { processVisualPlaceholdersJob } from '@/core/jobs/processVisualPlaceholders.job';
+import { handleProcessVisualPlaceholdersJob } from '@/core/jobs/processVisualPlaceholders.job';
 import { generateVisualJob } from '@/core/jobs/generateVisual.job';
-import { assembleNoteJob } from '@/core/jobs/assembleNote.job';
+import { handleAssembleNoteJob } from '@/core/jobs/assembleNote.job';
 import { processAudioTranscriptionJob } from '@/core/jobs/processAudioTranscription.job';
 import { processYouTubeTranscriptionJob } from '@/core/jobs/processYouTubeTranscription.job';
 import { processPdfJob } from '@/core/jobs/processPdf.job'; // Import the new PDF job processor
@@ -62,13 +62,13 @@ const worker = new Worker(
           await processAudioTranscriptionJob(job);
           break;
         case JobType.PROCESS_VISUAL_PLACEHOLDERS:
-          await processVisualPlaceholdersJob(job);
+          await handleProcessVisualPlaceholdersJob(job);
           break;
         case JobType.GENERATE_VISUAL:
           await generateVisualJob(job);
           break;
         case JobType.ASSEMBLE_NOTE:
-          await assembleNoteJob(job);
+          await handleAssembleNoteJob(job);
           break;
         // Add case for PROCESS_PDF
         case JobType.PROCESS_PDF:

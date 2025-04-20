@@ -1,0 +1,19 @@
+{{!-- 
+  Partial: key-takeaways.hbs
+  Context: LessonBlock (this)
+  Renders key takeaways/points, typically using the block's keyPoints array.
+  Styled based on benchmark green key takeaways box.
+--}}
+{{#if keyPoints}}
+<div class="my-6 rounded-md border border-l-4 border-green-500 bg-green-50 p-4">
+  <h4 class="mb-2 font-medium text-green-800">Key Takeaways</h4>
+  <ul class="list-disc space-y-1 pl-5 text-sm text-green-700">
+    {{#each keyPoints}}
+      <li>{{{this}}}</li> {{!-- Allow simple HTML in key points --}}
+    {{/each}}
+  </ul>
+</div>
+{{else}}
+  {{!-- Optional: Comment indicating no key points were provided for this block --}}
+  {{!-- {{log "No key points provided for this block"}} --}}
+{{/if}} 

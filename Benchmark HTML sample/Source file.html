@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Busy Person's Intro to Large Language Models</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .content-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .sidebar {
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        .nav-link {
+            display: block;
+            padding: 8px 15px;
+            color: #4a5568;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-link:hover {
+            color: #4299e1;
+            border-left-color: #4299e1;
+            background-color: rgba(237, 242, 247, 0.7);
+        }
+        
+        .nav-link.active {
+            color: #2b6cb0;
+            border-left-color: #2b6cb0;
+            font-weight: 600;
+        }
+        
+        .section {
+            padding: 2rem 0;
+            scroll-margin-top: 2rem;
+        }
+        
+        .image-caption {
+            font-size: 0.85rem;
+            color: #718096;
+            text-align: center;
+            margin-top: 0.5rem;
+        }
+        
+        .note-box {
+            background-color: #ebf8ff;
+            border-left: 4px solid #4299e1;
+            padding: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .highlight-box {
+            background-color: #f9f9f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        
+        .code-block {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        @media print {
+            .sidebar {
+                display: none;
+            }
+            
+            .main-content {
+                width: 100% !important;
+                margin-left: 0 !important;
+            }
+            
+            .section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="content-container px-4 py-8">
+        <div class="flex flex-wrap">
+            <!-- Sidebar Navigation -->
+            <div class="sidebar w-full md:w-1/4 lg:w-1/5 pr-4 mb-8 md:mb-0">
+                <div class="bg-white rounded-lg shadow-md p-4">
+                    <h2 class="text-xl font-bold mb-4 text-gray-800">Contents</h2>
+                    <nav class="nav-menu">
+                        <a href="#introduction" class="nav-link">Introduction</a>
+                        <a href="#what-is-llm" class="nav-link">What is a Large Language Model?</a>
+                        <a href="#llm-architecture" class="nav-link">LLM Architecture</a>
+                        <a href="#llama-2" class="nav-link">Llama 2 Model Series</a>
+                        <a href="#open-closed-source" class="nav-link">Open vs. Closed Source</a>
+                        <a href="#parameters-file" class="nav-link">The Parameters File</a>
+                        <a href="#run-file" class="nav-link">The Run File</a>
+                        <a href="#practical-implications" class="nav-link">Practical Implications</a>
+                        <a href="#conclusion" class="nav-link">Conclusion</a>
+                    </nav>
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="main-content w-full md:w-3/4 lg:w-4/5">
+                <div class="bg-white rounded-lg shadow-md p-6 md:p-8">
+                    <header class="mb-12 text-center">
+                        <h1 class="text-4xl font-bold text-gray-900 mb-4">The Busy Person's Intro to Large Language Models</h1>
+                        <p class="text-xl text-gray-600 mb-2">A comprehensive educational guide</p>
+                        <div class="w-24 h-1 bg-blue-500 mx-auto"></div>
+                    </header>
+
+                    <!-- Introduction Section -->
+                    <section id="introduction" class="section">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">Introduction</h2>
+                        <p class="mb-4 text-lg">Large Language Models (LLMs) have revolutionized how we interact with artificial intelligence. These powerful AI systems can understand, generate, and manipulate human language with remarkable fluency and versatility. From powering chatbots to assisting with complex writing tasks, LLMs have become central to many modern AI applications.</p>
+                        <p class="mb-6 text-lg">This educational note aims to provide a clear, accessible explanation of what LLMs are, how they work, and why they matter. Based on a lecture transcript, we'll explore the fundamental concepts and technical details behind these sophisticated models, with a particular focus on Meta's Llama 2 as a concrete example.</p>
+                        <div class="highlight-box">
+                            <h3 class="text-xl font-semibold mb-3">What You'll Learn</h3>
+                            <ul class="list-disc pl-6 space-y-2">
+                                <li>The basic components that make up an LLM</li>
+                                <li>How LLM architecture works at a high level</li>
+                                <li>The differences between open and closed source models</li>
+                                <li>Technical details about parameter storage and model implementation</li>
+                                <li>Practical implications of LLM design choices</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <!-- What is an LLM Section -->
+                    <section id="what-is-llm" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">What is a Large Language Model?</h2>
+                        <div class="flex flex-wrap md:flex-nowrap gap-8 items-center mb-8">
+                            <div class="w-full md:w-3/5">
+                                <p class="mb-4 text-lg">At its core, a Large Language Model is remarkably simple in concept. According to the lecture transcript:</p>
+                                <blockquote class="italic bg-gray-100 px-6 py-4 border-l-4 border-blue-500 mb-4">
+                                    "A large language model is just two files right... There will be two files in this hypothetical directory."
+                                </blockquote>
+                                <p class="mb-4">These two essential components are:</p>
+                                <ol class="list-decimal pl-6 space-y-3 mb-4">
+                                    <li><strong>Parameters File</strong>: A large file containing all the learned weights of the neural network</li>
+                                    <li><strong>Run File</strong>: Code that implements the neural network architecture and uses the parameters</li>
+                                </ol>
+                                <p>Together, these files form the complete language model that can generate text, answer questions, and perform various language tasks.</p>
+                            </div>
+                            <div class="w-full md:w-2/5">
+                                <div class="bg-blue-50 p-6 rounded-lg shadow-sm">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-folder text-yellow-500 text-2xl mr-3"></i>
+                                            <span class="font-mono text-lg">/llm_model</span>
+                                        </div>
+                                    </div>
+                                    <div class="pl-8 space-y-4">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-file-alt text-gray-600 text-xl mr-3"></i>
+                                            <div>
+                                                <p class="font-mono">parameters.bin</p>
+                                                <p class="text-sm text-gray-600">(140GB for Llama 2 70B)</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <i class="fas fa-file-code text-blue-500 text-xl mr-3"></i>
+                                            <div>
+                                                <p class="font-mono">run.c</p>
+                                                <p class="text-sm text-gray-600">(~500 lines of code)</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="image-caption">Visual representation of the two-file structure of an LLM</p>
+                            </div>
+                        </div>
+                        
+                        <div class="note-box mt-8">
+                            <h4 class="font-bold text-lg mb-2">Key Insight</h4>
+                            <p>The simplicity of an LLM's file structure belies the incredible complexity contained within. The parameters file stores billions of learned weights, while the run file implements sophisticated neural network architecture.</p>
+                        </div>
+                    </section>
+
+                    <!-- LLM Architecture Section -->
+                    <section id="llm-architecture" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">LLM Architecture Overview</h2>
+                        <p class="mb-6 text-lg">Modern LLMs are based on the Transformer architecture, introduced in the landmark 2017 paper "Attention Is All You Need." This architecture has proven remarkably effective for language processing tasks.</p>
+                        
+                        <div class="mb-8">
+                            <img src="https://cdn.prod.website-files.com/6305e5d52c28356b4fe71bac/66c62287f56241fb5e925719_63f8d049e407dd4f7bf860da_Holistic-AI-Figure-1.png" alt="LLM Transformer Architecture" class="w-full rounded-lg shadow-md">
+                            <p class="image-caption">The Transformer architecture that powers modern LLMs (Source: Holistic AI)</p>
+                        </div>
+                        
+                        <h3 class="text-2xl font-semibold mb-4">How LLMs Process Text</h3>
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">1. Tokenization</h4>
+                                <p>Text is split into tokens (words or subwords), which are converted to numerical vectors through an embedding layer.</p>
+                            </div>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">2. Self-Attention</h4>
+                                <p>The model learns which parts of the input are important to pay attention to when predicting the next token.</p>
+                            </div>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">3. Feed-Forward Networks</h4>
+                                <p>Each token representation is processed through neural networks to transform and enrich the representations.</p>
+                            </div>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">4. Layer Normalization</h4>
+                                <p>Stabilizes the learning process by normalizing the outputs of each sub-layer within the model.</p>
+                            </div>
+                        </div>
+                        
+                        <p class="mb-4">The Transformer architecture allows LLMs to capture long-range dependencies in text, understand context, and generate coherent responses. The model's parameters (weights) are learned during training on vast amounts of text data.</p>
+                        
+                        <div class="mb-8">
+                            <img src="https://kdb.ai/files/2024/01/transformers.png" alt="Transformer Components" class="w-full rounded-lg shadow-md">
+                            <p class="image-caption">Detailed view of transformer components (Source: KDB.AI)</p>
+                        </div>
+                        
+                        <div class="highlight-box">
+                            <h4 class="text-xl font-semibold mb-3">Key Architecture Elements</h4>
+                            <ul class="list-disc pl-6 space-y-2">
+                                <li><strong>Multi-Head Attention</strong>: Allows the model to focus on different parts of the input simultaneously</li>
+                                <li><strong>Positional Encoding</strong>: Helps the model understand the order of words in the sequence</li>
+                                <li><strong>Residual Connections</strong>: Help information flow through the deep network</li>
+                                <li><strong>Layer Normalization</strong>: Stabilizes training by normalizing activations</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <!-- Llama 2 Model Series Section -->
+                    <section id="llama-2" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">The Llama 2 Model Series</h2>
+                        <p class="mb-6 text-lg">The transcript specifically discusses Meta's Llama 2 models as examples of large language models. According to the speaker:</p>
+                        
+                        <blockquote class="italic bg-gray-100 px-6 py-4 border-l-4 border-blue-500 mb-6">
+                            "Llama 2 is a collection of pretrained and fine-tuned generative text models ranging in scale from 7 billion to 70 billion parameters."
+                        </blockquote>
+                        
+                        <div class="mb-8">
+                            <img src="https://substackcdn.com/image/fetch/f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fe0961ffa-b040-419a-ab10-1a16a2a84f87_2212x1244.png" alt="Llama 2 Architecture" class="w-full rounded-lg shadow-md">
+                            <p class="image-caption">Llama 2 model architecture overview (Source: Deep Learning Focus - Substack)</p>
+                        </div>
+                        
+                        <h3 class="text-2xl font-semibold mb-4">Llama 2 Model Variants</h3>
+                        <div class="overflow-x-auto mb-8">
+                            <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">Model Size</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">Parameters</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">File Size (FP16)</th>
+                                        <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">Relative Capabilities</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="py-3 px-4 border-b">Llama 2 7B</td>
+                                        <td class="py-3 px-4 border-b">7 billion</td>
+                                        <td class="py-3 px-4 border-b">~14 GB</td>
+                                        <td class="py-3 px-4 border-b">Good for basic tasks, can run on consumer hardware</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="py-3 px-4 border-b">Llama 2 13B</td>
+                                        <td class="py-3 px-4 border-b">13 billion</td>
+                                        <td class="py-3 px-4 border-b">~26 GB</td>
+                                        <td class="py-3 px-4 border-b">Improved reasoning and language understanding</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 border-b">Llama 2 34B</td>
+                                        <td class="py-3 px-4 border-b">34 billion</td>
+                                        <td class="py-3 px-4 border-b">~68 GB</td>
+                                        <td class="py-3 px-4 border-b">Advanced capabilities, requires more computational resources</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="py-3 px-4 border-b">Llama 2 70B</td>
+                                        <td class="py-3 px-4 border-b">70 billion</td>
+                                        <td class="py-3 px-4 border-b">~140 GB</td>
+                                        <td class="py-3 px-4 border-b">Most powerful, state-of-the-art performance on many tasks</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mb-8">
+                            <img src="https://llama-2.ai/wp-content/uploads/2024/03/LLama-2-Model-Architecture.png" alt="Llama 2 Specific Architecture" class="w-full md:w-2/3 mx-auto rounded-lg shadow-md">
+                            <p class="image-caption">Detailed Llama 2 architecture specification (Source: Llama-2.ai)</p>
+                        </div>
+                        
+                        <div class="note-box">
+                            <h4 class="font-bold text-lg mb-2">Important Note</h4>
+                            <p>The transcript specifically focuses on the Llama 2 70B model, noting it as "probably today the most powerful open weights model" at the time of the recording. The "open weights" aspect is significant, as we'll explore in the next section.</p>
+                        </div>
+                    </section>
+
+                    <!-- Open vs Closed Source Section -->
+                    <section id="open-closed-source" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">Open vs. Closed Source LLMs</h2>
+                        <p class="mb-6 text-lg">The transcript highlights an important distinction between open and closed source language models. Llama 2 is described as an open weights model, meaning its weights, architecture, and research paper are publicly available.</p>
+                        
+                        <div class="mb-8">
+                            <img src="https://cdn.prod.website-files.com/5ee50f2ef83ac07f0cb7fb44/663c6ffbbc0829e0a972c66a_Comparison-of-Open-Source-vs-Close-Source-LLMs-.png" alt="Open vs Closed Source LLMs" class="w-full rounded-lg shadow-md">
+                            <p class="image-caption">Comparison between open and closed source LLMs (Source: Capella Solutions)</p>
+                        </div>
+                        
+                        <div class="grid md:grid-cols-2 gap-8 mb-8">
+                            <div class="bg-blue-50 p-6 rounded-lg shadow-sm">
+                                <h3 class="text-xl font-bold mb-4 text-blue-800">Open Source Models</h3>
+                                <ul class="list-disc pl-6 space-y-3">
+                                    <li><strong>Examples:</strong> Llama 2, Mistral, Falcon</li>
+                                    <li><strong>Access:</strong> Full access to model weights and architecture</li>
+                                    <li><strong>Usage:</strong> Can be downloaded, modified, and run locally</li>
+                                    <li><strong>Transparency:</strong> Inner workings can be studied and improved</li>
+                                    <li><strong>Control:</strong> Full control over deployment and data privacy</li>
+                                </ul>
+                                <div class="mt-4 pt-4 border-t border-blue-200">
+                                    <p class="italic">From the transcript: "This is a large language model released by Meta AI ... the weights and the architecture and a paper was all released by Meta so anyone can work with this model very easily."</p>
+                                </div>
+                            </div>
+                            <div class="bg-gray-100 p-6 rounded-lg shadow-sm">
+                                <h3 class="text-xl font-bold mb-4 text-gray-800">Closed Source Models</h3>
+                                <ul class="list-disc pl-6 space-y-3">
+                                    <li><strong>Examples:</strong> GPT-4, Claude, Gemini</li>
+                                    <li><strong>Access:</strong> Available only through APIs or web interfaces</li>
+                                    <li><strong>Usage:</strong> Pay-per-use or subscription models</li>
+                                    <li><strong>Transparency:</strong> Limited insight into exact implementation</li>
+                                    <li><strong>Control:</strong> Provider maintains control of the model</li>
+                                </ul>
+                                <div class="mt-4 pt-4 border-t border-gray-300">
+                                    <p class="italic">From the transcript: "This is unlike many other language models that you might be familiar with, for example if you're using ChatGPT or something like that, the model architecture was never released... you're allowed to use the language model through a web interface but you don't have actually access to that model."</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-8">
+                            <img src="https://research-assets.cbinsights.com/2023/10/30230046/open-closed-llm.png" alt="Open vs Closed Source Comparison" class="w-full rounded-lg shadow-md">
+                            <p class="image-caption">Strategic differences between open and closed source AI models (Source: CB Insights)</p>
+                        </div>
+                        
+                        <div class="highlight-box">
+                            <h4 class="text-xl font-semibold mb-3">Implications of Model Access</h4>
+                            <p class="mb-4">The distinction between open and closed source models has significant implications for:</p>
+                            <ul class="list-disc pl-6 space-y-2">
+                                <li><strong>Research advancement</strong>: Open models enable broader scientific exploration</li>
+                                <li><strong>Customization</strong>: Open models can be fine-tuned for specific applications</li>
+                                <li><strong>Privacy concerns</strong>: Local deployment can protect sensitive data</li>
+                                <li><strong>Resource requirements</strong>: Running large models locally demands significant computing power</li>
+                                <li><strong>Responsible AI development</strong>: Transparency affects oversight and safety measures</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <!-- Parameters File Section -->
+                    <section id="parameters-file" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">Technical Deep Dive: The Parameters File</h2>
+                        <p class="mb-6 text-lg">The parameters file contains the learned weights of the neural network. For large models like Llama 2 70B, this file can be enormous.</p>
+                        
+                        <blockquote class="italic bg-gray-100 px-6 py-4 border-l-4 border-blue-500 mb-6">
+                            "Because this is a 70 billion parameter model, every one of those parameters is stored as 2 bytes and so therefore the parameters file here is 140 gigabytes and it's two bytes because this is a float 16 number as the data type."
+                        </blockquote>
+                        
+                        <div class="flex flex-wrap md:flex-nowrap gap-8 items-center mb-8">
+                            <div class="w-full md:w-2/3">
+                                <h3 class="text-2xl font-semibold mb-4">Understanding Parameter Storage</h3>
+                                <ul class="list-disc pl-6 space-y-3">
+                                    <li><strong>Parameter count</strong>: Llama 2 70B has 70 billion individual parameters</li>
+                                    <li><strong>Storage format</strong>: Float16 format (16-bit floating point numbers)</li>
+                                    <li><strong>Memory per parameter</strong>: 2 bytes per parameter</li>
+                                    <li><strong>Total file size</strong>: 70 billion × 2 bytes = 140 gigabytes</li>
+                                </ul>
+                                <p class="mt-4">These parameters represent the "knowledge" of the model, learned during training on vast text corpora. Each parameter is a weight in the neural network that contributes to the model's ability to predict and generate text.</p>
+                            </div>
+                            <div class="w-full md:w-1/3 bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-center mb-4">File Size Perspective</h4>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center">
+                                        <span>Typical MP3 song:</span>
+                                        <span class="font-semibold">~5 MB</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>HD Movie:</span>
+                                        <span class="font-semibold">~4-8 GB</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>Modern video game:</span>
+                                        <span class="font-semibold">~50-100 GB</span>
+                                    </div>
+                                    <div class="flex justify-between items-center bg-blue-100 p-2 rounded">
+                                        <span>Llama 2 70B:</span>
+                                        <span class="font-semibold">140 GB</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span>Typical SSD capacity:</span>
+                                        <span class="font-semibold">512 GB - 1 TB</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-2xl font-semibold mb-4">Float16 Format</h3>
+                        <p class="mb-4">The transcript mentions that the parameters are stored in "float16" format. This is a technical choice with important implications:</p>
+                        
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">Advantages of Float16</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li>Reduces storage requirements (compared to 32-bit floats)</li>
+                                    <li>Faster computation on compatible hardware</li>
+                                    <li>Lower memory bandwidth requirements</li>
+                                    <li>Enables larger models to fit in GPU memory</li>
+                                </ul>
+                            </div>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">Limitations of Float16</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li>Reduced numerical precision</li>
+                                    <li>Smaller range of representable values</li>
+                                    <li>Potential for numerical instability</li>
+                                    <li>May affect model quality in some cases</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="note-box">
+                            <h4 class="font-bold text-lg mb-2">Technical Note</h4>
+                            <p>While the file size is large (140GB), specialized techniques like quantization can further reduce the size. Quantized versions of LLMs can be much smaller (4-bit or 8-bit precision) but may have slightly reduced performance.</p>
+                        </div>
+                    </section>
+
+                    <!-- Run File Section -->
+                    <section id="run-file" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">Technical Deep Dive: The Run File</h2>
+                        <p class="mb-6 text-lg">The second essential component of an LLM is the "run file" - the code that implements the neural network architecture and uses the parameters file to generate text.</p>
+                        
+                        <blockquote class="italic bg-gray-100 px-6 py-4 border-l-4 border-blue-500 mb-6">
+                            "In addition to these parameters... you also need something that runs that neural network and this piece of code is implemented in our run file. Now this could be a C file or a python file or any other programming language really... it would only require about 500 lines of C with no other dependencies to implement the neural network architecture."
+                        </blockquote>
+                        
+                        <div class="flex flex-wrap md:flex-nowrap gap-8 mb-8">
+                            <div class="w-full md:w-3/5">
+                                <h3 class="text-2xl font-semibold mb-4">Run File Characteristics</h3>
+                                <ul class="list-disc pl-6 space-y-3 mb-6">
+                                    <li><strong>Implementation language</strong>: Can be C, Python, or other languages</li>
+                                    <li><strong>Code complexity</strong>: Approximately 500 lines of code (for a basic implementation)</li>
+                                    <li><strong>Dependencies</strong>: Can be implemented with minimal external dependencies</li>
+                                    <li><strong>Function</strong>: Implements the transformer neural network architecture</li>
+                                </ul>
+                                
+                                <p class="mb-4">While the parameters file is large, the run file is relatively small. It contains the logic for:</p>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li>Loading the parameters into memory</li>
+                                    <li>Tokenizing input text</li>
+                                    <li>Implementing the attention mechanism</li>
+                                    <li>Processing through transformer layers</li>
+                                    <li>Generating output probabilities</li>
+                                    <li>Sampling and producing text output</li>
+                                </ul>
+                            </div>
+                            <div class="w-full md:w-2/5">
+                                <div class="code-block">
+                                    <pre><code>// Simplified pseudocode for LLM run file
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+// Data structures for model
+typedef struct {
+    float* weights;
+    int layer_size;
+    int num_layers;
+    // Other architecture parameters
+} LlamaModel;
+
+// Load the model parameters from file
+LlamaModel* load_model(const char* param_path) {
+    // Allocate memory for model
+    // Read parameters from file
+    // Return initialized model
+}
+
+// Tokenize input text to token IDs
+int* tokenize(const char* text, int* num_tokens) {
+    // Convert text to token IDs
+}
+
+// Execute forward pass through the model
+float* forward(LlamaModel* model, int* tokens, int num_tokens) {
+    // For each layer in the transformer:
+    //   - Apply self-attention mechanism
+    //   - Apply feed-forward network
+    //   - Add residual connections & normalization
+    // Return final layer outputs
+}
+
+// Generate text from the model
+char* generate_text(LlamaModel* model, const char* prompt) {
+    // Tokenize the prompt
+    // Run forward pass to get probabilities
+    // Sample next token and append to output
+    // Repeat until stopping condition
+    // Return generated text
+}</code></pre>
+                                </div>
+                                <p class="image-caption">Simplified pseudocode illustrating the structure of an LLM run file</p>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-2xl font-semibold mb-4">Implementation Options</h3>
+                        <div class="grid md:grid-cols-3 gap-4 mb-8">
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-green-700">C/C++ Implementation</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li>Maximum performance</li>
+                                    <li>Low-level memory control</li>
+                                    <li>Minimal dependencies</li>
+                                    <li>Most efficient for deployment</li>
+                                </ul>
+                            </div>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">Python Implementation</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li>Easier to develop</li>
+                                    <li>Good integration with ML libraries</li>
+                                    <li>More readable code</li>
+                                    <li>Slower but more flexible</li>
+                                </ul>
+                            </div>
+                            <div class="bg-gray-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-purple-700">Framework-Based</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li>PyTorch, TensorFlow, JAX</li>
+                                    <li>Higher-level abstractions</li>
+                                    <li>GPU/TPU acceleration built-in</li>
+                                    <li>More dependencies but powerful</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="highlight-box">
+                            <h4 class="text-xl font-semibold mb-3">The Surprising Simplicity</h4>
+                            <p>While LLMs exhibit remarkable capabilities, the core algorithm that powers them is relatively compact. The transcript emphasizes this point - the neural network architecture itself can be implemented in about 500 lines of code. The complexity lies in the billions of parameters that store the learned "knowledge" and relationships, not in the algorithm that processes them.</p>
+                        </div>
+                    </section>
+
+                    <!-- Practical Implications Section -->
+                    <section id="practical-implications" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">Practical Implications</h2>
+                        <p class="mb-6 text-lg">Understanding the basic structure of LLMs - a parameters file and a run file - has several practical implications for developers, researchers, and organizations working with AI.</p>
+                        
+                        <div class="grid md:grid-cols-2 gap-8 mb-8">
+                            <div>
+                                <h3 class="text-2xl font-semibold mb-4">Hardware Requirements</h3>
+                                <p class="mb-4">The size of the parameters file directly impacts the hardware needed to run the model:</p>
+                                <ul class="list-disc pl-6 space-y-2 mb-4">
+                                    <li>Smaller models (7B) can run on high-end consumer hardware</li>
+                                    <li>Medium models (13B) require dedicated GPUs with sufficient VRAM</li>
+                                    <li>Large models (70B) typically need multiple GPUs or specialized hardware</li>
+                                </ul>
+                                <p>The transcript mentions that a 70B model requires 140GB just for the parameters, which exceeds the memory capacity of most individual GPUs, requiring distributed computing solutions.</p>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-semibold mb-4">Model Deployment Options</h3>
+                                <p class="mb-4">Understanding the two-file structure helps in planning deployment:</p>
+                                <ul class="list-disc pl-6 space-y-2 mb-4">
+                                    <li><strong>Local deployment</strong>: Running the model on your own hardware</li>
+                                    <li><strong>Cloud deployment</strong>: Using cloud providers with specialized hardware</li>
+                                    <li><strong>Hybrid approaches</strong>: Smaller models locally, larger ones via API</li>
+                                    <li><strong>Quantized deployment</strong>: Using reduced precision to fit on smaller hardware</li>
+                                </ul>
+                                <p>The choice depends on privacy requirements, performance needs, and available resources.</p>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-2xl font-semibold mb-4">Model Customization and Fine-tuning</h3>
+                        <p class="mb-6">Open source models like Llama 2 enable users to customize and fine-tune the models for specific applications:</p>
+                        
+                        <div class="grid md:grid-cols-3 gap-4 mb-8">
+                            <div class="bg-blue-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">Parameter Efficiency</h4>
+                                <p>Techniques like LoRA and QLoRA allow fine-tuning with limited computational resources by updating only a small subset of parameters.</p>
+                            </div>
+                            <div class="bg-blue-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">Domain Adaptation</h4>
+                                <p>The parameters file can be updated through fine-tuning on domain-specific data to improve performance for particular applications.</p>
+                            </div>
+                            <div class="bg-blue-50 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3 text-blue-700">Architecture Modification</h4>
+                                <p>The run file can be modified to experiment with architectural changes, such as different attention mechanisms or layer configurations.</p>
+                            </div>
+                        </div>
+                        
+                        <div class="note-box">
+                            <h4 class="font-bold text-lg mb-2">Key Insight</h4>
+                            <p>The separation of parameters and code in LLMs enables a flexible development ecosystem. Researchers can experiment with architectural changes (modifying the run file) while practitioners can customize model behavior through fine-tuning (modifying the parameters file).</p>
+                        </div>
+                    </section>
+
+                    <!-- Conclusion Section -->
+                    <section id="conclusion" class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-3xl font-bold mb-6 text-gray-800">Conclusion</h2>
+                        <p class="mb-6 text-lg">Large Language Models represent a remarkable achievement in artificial intelligence. While their capabilities may seem magical, their structure is conceptually simple: a parameters file containing the learned weights of the neural network, and a run file that implements the architecture to use those parameters.</p>
+                        
+                        <div class="bg-blue-50 p-6 rounded-lg shadow-sm mb-8">
+                            <h3 class="text-2xl font-semibold mb-4 text-blue-800">Key Takeaways</h3>
+                            <ul class="list-disc pl-6 space-y-3">
+                                <li>An LLM consists of two main components: a parameters file and a run file</li>
+                                <li>The parameters file is large (140GB for Llama 2 70B) and contains the model's "knowledge"</li>
+                                <li>The run file is relatively small (around 500 lines of code) and implements the transformer architecture</li>
+                                <li>Open source models like Llama 2 provide full access to both components</li>
+                                <li>Closed source models like ChatGPT only allow access via APIs or web interfaces</li>
+                                <li>The size of models creates practical challenges for deployment and use</li>
+                            </ul>
+                        </div>
+                        
+                        <h3 class="text-2xl font-semibold mb-4">Further Learning Resources</h3>
+                        <div class="grid md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-white border border-gray-200 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3">Technical Resources</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li><a href="https://github.com/meta-llama/llama" class="text-blue-600 hover:underline">Meta's Llama 2 GitHub Repository</a></li>
+                                    <li><a href="https://arxiv.org/abs/2307.09288" class="text-blue-600 hover:underline">Llama 2 Research Paper</a></li>
+                                    <li><a href="https://huggingface.co/docs/transformers/index" class="text-blue-600 hover:underline">Hugging Face Transformers Documentation</a></li>
+                                    <li><a href="https://karpathy.github.io/2023/03/29/llama2/" class="text-blue-600 hover:underline">Karpathy's Guide to LLM Concepts</a></li>
+                                </ul>
+                            </div>
+                            <div class="bg-white border border-gray-200 p-5 rounded-lg shadow-sm">
+                                <h4 class="font-bold text-lg mb-3">Practical Guides</h4>
+                                <ul class="list-disc pl-6 space-y-2">
+                                    <li><a href="https://www.youtube.com/watch?v=kCc8FmEb1nY" class="text-blue-600 hover:underline">Let's build GPT from scratch (Andrej Karpathy)</a></li>
+                                    <li><a href="https://llama.meta.com/docs/model-cards/" class="text-blue-600 hover:underline">Llama 2 Model Cards and Documentation</a></li>
+                                    <li><a href="https://ai.meta.com/blog/large-language-model-llama-meta-ai/" class="text-blue-600 hover:underline">Meta AI's Blog on Llama Models</a></li>
+                                    <li><a href="https://www.deeplearning.ai/short-courses/how-to-work-with-large-language-models/" class="text-blue-600 hover:underline">DeepLearning.AI's Course on Working with LLMs</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <p class="text-lg">Understanding the fundamental structure of LLMs provides a solid foundation for working with these powerful AI systems, whether you're using them through APIs, fine-tuning them for specific applications, or exploring their capabilities for research purposes.</p>
+                    </section>
+                    
+                    <!-- Attribution Section -->
+                    <section class="section border-t border-gray-200 pt-10">
+                        <h2 class="text-2xl font-bold mb-4 text-gray-800">Image Sources & Attribution</h2>
+                        <ul class="list-disc pl-6 space-y-2 text-sm">
+                            <li>LLM Transformer Architecture: <a href="https://www.holisticai.com/blog/from-transformer-architecture-to-prompt-engineering" class="text-blue-600 hover:underline">Holistic AI</a></li>
+                            <li>Transformer Components: <a href="https://kdb.ai/learning-hub/articles/large-language-model-architecture/" class="text-blue-600 hover:underline">KDB.AI</a></li>
+                            <li>Llama 2 Architecture: <a href="https://cameronrwolfe.substack.com/p/llama-2-from-the-ground-up" class="text-blue-600 hover:underline">Deep Learning Focus - Substack</a></li>
+                            <li>Llama 2 Specific Architecture: <a href="https://llama-2.ai/llama-2-explained/" class="text-blue-600 hover:underline">Llama-2.ai</a></li>
+                            <li>Open vs. Closed Source LLMs Comparison: <a href="https://www.capellasolutions.com/blog/open-source-vs-closed-source-llms-a-ceos-decision-guide" class="text-blue-600 hover:underline">Capella Solutions</a></li>
+                            <li>Open vs. Closed Source Strategic Differences: <a href="https://www.cbinsights.com/research/open-source-closed-source-ai/" class="text-blue-600 hover:underline">CB Insights</a></li>
+                        </ul>
+                        <p class="mt-4 text-sm text-gray-600">This educational note was created based on a lecture transcript and supplemented with additional research to provide a comprehensive understanding of Large Language Models.</p>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Highlight active section in navigation
+        document.addEventListener('DOMContentLoaded', function() {
+            const sections = document.querySelectorAll('.section');
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            function setActiveLink() {
+                let current = '';
+                
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (window.scrollY >= sectionTop - 100) {
+                        current = '#' + section.getAttribute('id');
+                    }
+                });
+                
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === current) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+            
+            window.addEventListener('scroll', setActiveLink);
+            setActiveLink(); // Set initial state
+        });
+    </script>
+</body>
+</html>

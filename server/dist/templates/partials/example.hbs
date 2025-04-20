@@ -1,0 +1,13 @@
+{{!-- 
+  Partial: example.hbs
+  Context: Assumes 'content' field contains the text. Optional 'title'.
+  Description: Renders content as an example block.
+--}}
+{{#if content}}
+<div class="p-4 my-4 border-l-4 border-green-500 bg-green-50">
+    <p class="font-semibold text-green-800">Example{{#if title}}: {{title}}{{/if}}</p>
+    <div class="mt-2 text-green-700">
+        {{{content}}}
+    </div>
+</div>
+{{/if}} 

@@ -94,13 +94,13 @@ const worker = new bullmq_1.Worker(QUEUE_NAME, (job) => __awaiter(void 0, void 0
                 yield (0, processAudioTranscription_job_1.processAudioTranscriptionJob)(job);
                 break;
             case job_definition_1.JobType.PROCESS_VISUAL_PLACEHOLDERS:
-                yield (0, processVisualPlaceholders_job_1.processVisualPlaceholdersJob)(job);
+                yield (0, processVisualPlaceholders_job_1.handleProcessVisualPlaceholdersJob)(job);
                 break;
             case job_definition_1.JobType.GENERATE_VISUAL:
                 yield (0, generateVisual_job_1.generateVisualJob)(job);
                 break;
             case job_definition_1.JobType.ASSEMBLE_NOTE:
-                yield (0, assembleNote_job_1.assembleNoteJob)(job);
+                yield (0, assembleNote_job_1.handleAssembleNoteJob)(job);
                 break;
             // Add case for PROCESS_PDF
             case job_definition_1.JobType.PROCESS_PDF:

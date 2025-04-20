@@ -1,0 +1,13 @@
+{{!-- templates/partials/visual_placeholder.hbs --}}
+{{log "Rendering visual_placeholder partial for placeholderId:" placeholderId}}
+
+{{!-- Call the findVisual helper, passing ONLY the ID. The helper will find the map via options.data.root --}}
+{{#with (findVisual placeholderId)}}
+  {{!-- If a visual is found, render the visual partial with its data --}}
+  {{log "Visual FOUND for placeholderId:" ../placeholderId visual=this}}
+  {{> visual this}}
+{{else}}
+  {{!-- If no visual is found (e.g., generation failed or map issue), render the placeholder partial --}}
+  {{log "Visual NOT FOUND for placeholderId:" ../placeholderId}}
+  {{> placeholder}}
+{{/with}} 

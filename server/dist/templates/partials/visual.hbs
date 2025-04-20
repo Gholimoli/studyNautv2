@@ -1,0 +1,25 @@
+{{!-- 
+  Partial: visual.hbs
+  Context: VisualRecord (this) - Passed via findVisual helper
+  Renders a successfully retrieved visual with caption and source link.
+--}}
+<figure class="my-6 mx-auto max-w-xl bg-muted p-2 rounded-lg shadow-sm border border-border">
+  <img src="{{imageUrl}}" alt="{{altText}}" class="w-full h-auto rounded-md object-contain max-h-[400px]">
+  {{#if sourceTitle}}
+  <figcaption class="mt-2 text-sm text-center text-muted-foreground">
+    {{{sourceTitle}}} {{!-- Allow potential simple formatting in title --}}
+    {{#if sourceUrl}}
+    (<cite><a href="{{sourceUrl}}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">Source</a></cite>)
+    {{/if}}
+  </figcaption>
+  {{else if sourceUrl}}
+   <figcaption class="mt-2 text-sm text-center text-muted-foreground">
+      <cite><a href="{{sourceUrl}}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">Source</a></cite>
+  </figcaption>
+  {{else}}
+   {{!-- Optionally render alt text as caption if no source info --}}
+   {{!-- <figcaption class="mt-2 text-sm text-center text-muted-foreground italic">{{altText}}</figcaption> --}}
+  {{/if}}
+  {{!-- Debug: Display the image URL --}}
+  <div class="mt-1 text-xs text-center text-gray-400 break-all"><code>[Debug URL: {{imageUrl}}]</code></div>
+</figure> 

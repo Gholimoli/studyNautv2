@@ -55,9 +55,10 @@ export async function processSourceTextJob(job: Job<ProcessSourceTextJobData>): 
 
     // 4. Update source record with AI result (store structured content in metadata)
     // Combine with existing metadata if any
+    const existingMetadata = (sourceRecord.metadata as object || {});
     const updatedMetadata = { 
-        ...(sourceRecord.metadata as object || {}), 
-        aiStructure: aiResult // Contains title, summary, structure array
+        ...existingMetadata, 
+        lessonStructureJson: aiResult // Use the correct key: lessonStructureJson
     };
     await db.update(sources)
       .set({ 

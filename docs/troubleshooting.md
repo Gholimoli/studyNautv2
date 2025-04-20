@@ -73,7 +73,7 @@ This guide addresses common issues encountered in the Studynaut application and 
     *   **Solution**: Add `try...catch` blocks within your job processor functions and log errors with `job.data` for context.
     *   **Solution**: Ensure all necessary services or external clients (DB, AI providers) are correctly initialized within the worker context.
 *   **Problem**: Clearing stuck jobs (Development Only).
-    *   **Solution**: Use a Redis client (`redis-cli`) to inspect queues (`KEYS bull:*:*`, `LRANGE bull:<queue_name>:waiting 0 -1`). You can flush the *entire* Redis instance with `FLUSHALL` ( **Use with extreme caution - all Redis data will be lost!** ).
+    *   **Solution**: Use a Redis client (`redis-cli`) to inspect queues (`KEYS bull:*:*`, `LRANGE bull:<queue_name>:waiting 0 -1`). You can flush the *entire* Redis instance with `FLUSHALL` ( **Use with extreme caution - all Redis data will be lost!** ). Alternatively, use `redis-cli DEL key1 key2 ...` to remove specific BullMQ queue keys (e.g., `bull:note-processing:active`, `bull:note-processing:wait`, etc.).
 *   **Problem**: Jobs fail with `TypeError: ... is not a constructor`
     *   **Solution**: Check for ESM/CJS import issues in worker files
     *   **Solution**: Try restarting the worker and server
@@ -92,6 +92,19 @@ This guide addresses common issues encountered in the Studynaut application and 
     *   **Cause 2**: Potential state inconsistency or lock associated with the specific job ID in Redis.
     *   **Cause 3**: Maximum retry attempts for the job may have been exceeded.
     *   **Solution**: Verify the job state directly in Redis (`redis-cli ZSCORE bull:<queue_name>:failed <job_id>`) after attempting a retry. Check worker logs immediately. Consider using a script to explicitly delete the problematic job (`job.remove()`) and resubmitting the original task.
+*   **Problem**: `PROCESS_VISUAL_PLACEHOLDERS` job reports "No visual placeholders found" but they exist in the AI structure.
+    *   **Cause**: The placeholder detection logic (e.g., `findVisualPlaceholders` function) might be too strict, requiring fields (like `description`) that are sometimes omitted by the AI provider within the placeholder block itself (expecting them only in the top-level `visualOpportunities` array).
+    *   **Solution**: Add logging before the detection function runs to inspect the raw AI structure. Modify the detection function to be less strict (e.g., only check for `contentType: 'visual_placeholder'` and `placeholderId`). Ensure the job logic correctly fetches details like `description` from the `visualOpportunities` array using the `placeholderId`.
+*   **Problem**: `ASSEMBLE_NOTE` job runs before `GENERATE_VISUAL` jobs complete, resulting in missing images.
+    *   **Cause**: The job dependency logic is flawed. `ASSEMBLE_NOTE` might be enqueued prematurely (e.g., by `PROCESS_VISUAL_PLACEHOLDERS` directly) or the completion check in `GENERATE_VISUAL` is not working correctly.
+    *   **Solution**: Ensure `ASSEMBLE_NOTE` is *only* triggered by the *last* completing `GENERATE_VISUAL` job for a given `sourceId`. This typically involves:
+        *   `PROCESS_VISUAL_PLACEHOLDERS` setting a specific `sources.processingStage` (e.g., `GENERATING_VISUALS`).
+        *   Each `GENERATE_VISUAL` job counting remaining pending/processing visuals for the source.
+        *   The *last* `GENERATE_VISUAL` job (when the count reaches 0) verifying the source stage is still `GENERATING_VISUALS` before enqueueing `ASSEMBLE_NOTE` and updating the source stage (e.g., to `ASSEMBLY_PENDING`).
+        *   Clearing any stuck/prematurely added jobs from the queue (`redis-cli DEL ...`).
+*   **Problem**: Images appear broken in the final note despite successful visual generation.
+    *   **Cause**: The image URL obtained from the external search might be temporary, protected, or otherwise unsuitable for direct embedding (e.g., `lookaside.fbsbx.com` URLs from Facebook/Meta).
+    *   **Solution**: Add debug output to the rendering template (e.g., `visual.hbs`) to display the `imageUrl`. Check if the URL itself is accessible directly in a browser. Implement filtering in the `GENERATE_VISUAL` job's image selection logic to discard URLs from known problematic domains.
 
 ## API Integration Issues
 

@@ -74,7 +74,7 @@ const lessonStructureClosing = `
 Valid JSON Output (in {LANGUAGE_CODE}):
 `;
 
-export const GENERATE_LESSON_STRUCTURE =
+export const GENERATE_LESSON_STRUCTURE = 
   lessonStructureBaseInstructions +
   lessonStructureJsonFormat +
   lessonStructureGuidelines +
@@ -121,5 +121,5 @@ JSON Response (tags in {LANGUAGE_CODE}):
 export const GENERATE_TAGS = (_content: string): string => {
   // basic sanitisation → avoid breaking the prompt with back‑ticks
   const safeContent = _content.replace(/`/g, "'");
-  return generateTagsBase + safeContent + generateTagsClosing;
-};
+    return generateTagsBase + safeContent + generateTagsClosing;
+}; 

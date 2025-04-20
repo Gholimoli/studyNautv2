@@ -1,0 +1,15 @@
+{{!-- 
+  Partial: heading.hbs
+  Context: LessonBlock (this)
+  Renders a heading tag (h2-h5) based on the block's level.
+--}}
+{{#if (eq level 1)}}
+<h2 class="text-2xl font-semibold mt-8 mb-4 text-foreground border-b pb-2">{{content}}</h2>
+{{else if (eq level 2)}}
+<h3 class="text-xl font-semibold mt-6 mb-3 text-foreground">{{content}}</h3>
+{{else if (eq level 3)}}
+<h4 class="text-lg font-semibold mt-4 mb-2 text-foreground">{{content}}</h4>
+{{else}}
+{{!-- Default to h5 for level 4 or undefined --}}
+<h5 class="text-base font-semibold mt-3 mb-1 text-foreground">{{content}}</h5>
+{{/if}} 

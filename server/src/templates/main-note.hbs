@@ -3,29 +3,89 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{title}} | Studynaut</title>
-  {{!-- Rely on client-side Tailwind or linked CSS. No inline styles here. --}}
+  <title>{{title}}</title>
+  {{!-- Tailwind styles are assumed to be handled by the viewing environment (e.g., React app) --}}
+  {{!-- Removed CDN link and inline <style> block --}}
 </head>
-<body class="p-4 md:p-6 lg:p-8 font-sans text-foreground bg-background"> {{!-- Basic body styles --}}
-  <header class="mb-8 border-b pb-4">
-    {{!-- Render title using specific heading level based on context, maybe h1 here? --}}
-    <h1 class="text-3xl font-semibold">{{title}}</h1>
-    {{#if summary}}
-      {{!-- Basic summary styling --}}
-      <p class="mt-2 text-base italic text-muted-foreground border-l-4 border-border pl-4 py-1">{{summary}}</p>
+<body class="font-sans"> {{!-- Basic body styles if needed, but mostly rely on prose --}}
+  {{!-- Simplified container, relying on prose for main styling --}}
+  <div class="max-w-4xl mx-auto p-6 md:p-8 my-8">
+    <header class="mb-8 pb-4 border-b border-border">
+      {{!-- Updated H1 style to match benchmark --}}
+      <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-6">{{title}}</h1>
+      {{#if summary}}
+      {{!-- Updated summary style --}}
+      <p class="text-lg text-muted-foreground mb-8">{{summary}}</p>
+      {{/if}}
+    </header>
+
+    {{!-- Prose handles typography, spacing, etc. for generated content --}}
+    <main class="prose prose-lg max-w-none text-foreground">
+      {{#each structure}} {{!-- Loop through main sections --}}
+        {{!-- Explicitly render top-level blocks (should always be heading level 1 based on AI prompt) --}}
+        {{#if (eq contentType 'heading')}}
+          {{> heading this}}
+        {{else}}
+          {{!-- Fallback/Error for unexpected top-level type --}}
+          <p class="my-4 p-2 bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-md">[WARN] Unexpected top-level contentType: '{{contentType}}'. Expected 'heading'.</p>
+          {{!-- Attempt to render it anyway if a partial exists --}}
+          {{#if (lookup @root.partialsMap contentType)}}
+             {{> (lookup this 'contentType') this visualsMap=@root.visualsMap}}
+          {{/if}}
+        {{/if}}
+
+        {{!-- Check if subStructure exists and loop through its blocks --}}
+        {{#if subStructure}}
+          <div class="ml-4 md:ml-6"> {{!-- Optional indentation for subsection content --}}
+            {{#each subStructure}}
+              {{!-- Use explicit if/else if blocks for known partials --}}
+              {{#if (eq contentType 'paragraph')}}
+                {{> paragraph this}}
+              {{else if (eq contentType 'heading')}}
+                {{> heading this}}
+              {{else if (eq contentType 'list')}}
+                {{> list this}}
+              {{else if (eq contentType 'highlight-box')}}
+                {{> highlight-box this}}
+              {{else if (eq contentType 'note-box')}}
+                {{> note-box this}}
+              {{else if (eq contentType 'definition')}}
+                {{> definition this}}
+              {{else if (eq contentType 'example')}}
+                {{> example this}}
+              {{else if (eq contentType 'qa')}}
+                {{> qa this}}
+              {{else if (eq contentType 'code-block')}}
+                {{> code-block this}}
+              {{else if (eq contentType 'key-takeaways')}}
+                {{> key-takeaways this}}
+              {{else if (eq contentType 'visual')}}
+                {{> visual this}}
+              {{else if (eq contentType 'placeholder')}}
+                {{> placeholder this}}
+              {{!-- Add any other known partials here with 'else if' --}}
+              {{else}}
+                {{!-- Fallback for unknown types after normalization/hydration --}}
+                <p class="my-4 p-2 bg-red-100 text-red-700 border border-red-300 rounded-md">[DEBUG] Unknown/unhandled contentType: '{{contentType}}'. No explicit partial branch.</p>
+              {{/if}}
+            {{/each}}
+          </div>
+        {{/if}}
+      {{/each}}
+    </main>
+
+    {{#if originalTranscript}}
+      <section class="mt-12 pt-6 border-t border-border">
+        <h2 class="text-2xl font-semibold text-foreground mb-4">Original Transcript</h2>
+        <div class="text-sm text-muted-foreground bg-muted p-4 rounded-md max-h-96 overflow-y-auto">
+          <pre class="whitespace-pre-wrap break-words">{{originalTranscript}}</pre>
+        </div>
+      </section>
     {{/if}}
-  </header>
 
-  <main>
-    {{#each structure}}
-      {{!-- Render section partial, passing down visuals map --}}
-      {{> section block=this visuals=../visuals}}
-    {{/each}}
-  </main>
-
-  <footer>
-    {{!-- Potential future footer content --}}
-  </footer>
-
+    <footer class="mt-12 pt-4 border-t border-border text-center text-xs text-muted-foreground">
+      Generated by Studynaut
+    </footer>
+  </div>
 </body>
 </html> 

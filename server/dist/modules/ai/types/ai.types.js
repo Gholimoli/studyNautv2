@@ -3,42 +3,60 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.aiFlashcardsSchema = exports.aiFlashcardSchema = exports.aiQuizSchema = exports.aiQuizQuestionSchema = exports.aiStructuredContentSchema = exports.lessonBlockSchema = void 0;
 const zod_1 = require("zod");
 // --- Task-Specific AI Output Schemas (using Zod for validation) ---
-// Schema for a single block in the lesson structure
-exports.lessonBlockSchema = zod_1.z.object({
-    contentType: zod_1.z.enum([
-        'heading',
-        'paragraph',
-        'bullet_list',
-        'code_block',
-        'advanced_code_block',
-        'definition',
-        'key_takeaway_box',
-        'callout_info',
-        'visual_placeholder',
-        'introduction',
-        'explanation',
-        'example',
-    ]),
-    content: zod_1.z.string().nullable().optional(),
-    level: zod_1.z.number().nullable().optional(), // Heading level (1, 2, 3...)
-    items: zod_1.z.array(zod_1.z.string()).nullable().optional(), // Only for 'bullet_list'
-    keyPoints: zod_1.z.array(zod_1.z.string()).nullable().optional(), // Added: Only for 'key_takeaway_box'
-    placeholderId: zod_1.z.string().nullable().optional(), // Only for 'visual_placeholder'
+// Define allowed content types as a Zod enum first
+const lessonBlockContentTypeSchema = zod_1.z.enum([
+    'heading',
+    'paragraph',
+    'list',
+    'code_block',
+    'definition',
+    'key_takeaway_box',
+    'note_box',
+    'highlight_box',
+    'qa',
+    'visual_placeholder', // Placeholder inserted by AI during generation
+    'explanation', // Added based on potential AI output
+    'example', // Added based on potential AI output
+    'conclusion', // Added based on potential AI output
+    'visual', // Added for hydrated visuals
+    'placeholder', // Added for failed/missing visuals
+]);
+// Base schema for all lesson blocks
+const baseLessonBlockSchema = zod_1.z.object({
+    contentType: lessonBlockContentTypeSchema,
+    content: zod_1.z.string().optional(), // Optional for container types like list, qa
+    items: zod_1.z.array(zod_1.z.string()).optional(), // For lists
+    question: zod_1.z.string().optional(), // For QA
+    answer: zod_1.z.string().optional(), // For QA
+    term: zod_1.z.string().optional(), // For definition
+    definition: zod_1.z.string().optional(), // For definition
+    level: zod_1.z.number().int().min(1).max(6).nullable().optional(), // Allow null for level
+    language: zod_1.z.string().optional(), // For code blocks
+    placeholderId: zod_1.z.string().optional(), // For visual_placeholder
+    description: zod_1.z.string().optional(), // For visual_placeholder, key_takeaway_box, note_box, highlight_box
+    // --- Added for hydrated/failed visuals ---
+    imageUrl: zod_1.z.string().url().optional(), // For visual
+    altText: zod_1.z.string().optional(), // For visual
+    sourceUrl: zod_1.z.string().url().optional(), // For visual
+    sourceTitle: zod_1.z.string().optional(), // For visual
+    reason: zod_1.z.string().optional(), // For placeholder
+    // ----------------------------------------
 });
-// Schema for the overall lesson structure returned by AI
+// Recursive schema for LessonBlock
+exports.lessonBlockSchema = baseLessonBlockSchema.extend({
+    subStructure: zod_1.z.lazy(() => zod_1.z.array(exports.lessonBlockSchema)).optional(),
+});
+// Schema for the main AI-generated structure
 exports.aiStructuredContentSchema = zod_1.z.object({
-    title: zod_1.z.string().min(1, 'Title cannot be empty'),
-    summary: zod_1.z.string().nullable().optional(),
-    structure: zod_1.z.array(exports.lessonBlockSchema),
-    visualOpportunities: zod_1.z
-        .array(zod_1.z.object({
-        placeholderId: zod_1.z.string(), // ID matching a placeholder in the structure
-        concept: zod_1.z.string(), // Added: Specific concept the visual illustrates
-        description: zod_1.z.string(), // Detailed description of the desired visual
-        searchQuery: zod_1.z.string(), // Changed: Now required - Optimized query for image search
-    }))
-        .nullable()
-        .optional(),
+    title: zod_1.z.string(),
+    summary: zod_1.z.string(),
+    structure: zod_1.z.array(exports.lessonBlockSchema), // Array of LessonBlocks
+    visualOpportunities: zod_1.z.array(zod_1.z.object({
+        placeholderId: zod_1.z.string(),
+        concept: zod_1.z.string(),
+        description: zod_1.z.string(),
+        searchQuery: zod_1.z.string(),
+    })).optional(), // Added visualOpportunities as optional array
 });
 // Schema for a Quiz Question
 exports.aiQuizQuestionSchema = zod_1.z.object({

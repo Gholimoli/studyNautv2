@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -41,430 +8,319 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.assembleNoteJob = assembleNoteJob;
+exports.handleAssembleNoteJob = handleAssembleNoteJob;
+const handlebars_1 = __importDefault(require("handlebars"));
+const promises_1 = __importDefault(require("fs/promises"));
+const path_1 = __importDefault(require("path"));
 const index_1 = require("../db/index");
 const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
-const ai_service_1 = require("../../modules/ai/ai.service"); // Import AiService
-// --- Add Handlebars and FS imports ---
-const Handlebars = __importStar(require("handlebars"));
-const fs = __importStar(require("fs/promises"));
-const path = __importStar(require("path"));
-// -------------------------------------
-// --- Helper function for reading files with retry ---
-function readFileWithRetry(filePath_1) {
-    return __awaiter(this, arguments, void 0, function* (filePath, retries = 2, delay = 300) {
-        let attempts = 0;
-        while (attempts <= retries) {
-            try {
-                return yield fs.readFile(filePath, 'utf8');
-            }
-            catch (error) {
-                if (error.code === 'ENOENT' && attempts < retries) {
-                    attempts++;
-                    console.warn(`[Worker:AssembleNote] Template read failed (${error.code}), attempt ${attempts}/${retries}. Retrying in ${delay}ms... Path: ${filePath}`);
-                    yield new Promise(resolve => setTimeout(resolve, delay));
-                }
-                else {
-                    console.error(`[Worker:AssembleNote] Final attempt failed to read template file: ${filePath}`, error);
-                    throw error; // Re-throw the error if it's not ENOENT or retries exhausted
-                }
-            }
-        }
-        // Should not be reached if retries exhausted, as error is thrown above
-        throw new Error(`Failed to read file ${filePath} after ${retries} retries.`);
-    });
-}
-// --------------------------------------------------
-// --- Template Compilation (Load once, reuse) ---
-let compiledTemplates = {};
-let templatesLoaded = false;
-function loadAndCompileTemplates() {
+const logger_1 = require("../logger/logger");
+const ai_types_1 = require("../../modules/ai/types/ai.types");
+// ==============================================
+// Handlebars Setup
+// ==============================================
+// ---- Partials Loading (Modified) ----
+function loadPartials(HB, // Accept Handlebars instance
+partialsDir) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (templatesLoaded)
-            return;
+        const partialsMap = {};
         try {
-            console.log('[Worker:AssembleNote] Loading and compiling Handlebars templates...');
-            const cwd = process.cwd();
-            const dirname = __dirname;
-            console.log(`[Worker:AssembleNote] Current working directory (cwd): ${cwd}`);
-            console.log(`[Worker:AssembleNote] Directory of current file (__dirname): ${dirname}`);
-            // Revert to resolving path relative to the *compiled* file in dist/
-            const templateDir = path.resolve(__dirname, '../../templates');
-            console.log(`[Worker:AssembleNote] Attempting to load templates from resolved path (relative to dist): ${templateDir}`);
-            // Log directory contents before trying to read files
-            try {
-                const dirContents = yield fs.readdir(templateDir);
-                console.log(`[Worker:AssembleNote] Contents of ${templateDir}:`, dirContents);
-            }
-            catch (readDirError) {
-                console.error(`[Worker:AssembleNote] FAILED to read directory ${templateDir}:`, readDirError);
-                throw new Error(`Failed to read template directory: ${readDirError}`);
-            }
-            // Read files using the retry helper
-            const mainTemplateSource = yield readFileWithRetry(path.join(templateDir, 'main-note.hbs'));
-            const sectionPartialSource = yield readFileWithRetry(path.join(templateDir, 'section.hbs'));
-            const visualPartialSource = yield readFileWithRetry(path.join(templateDir, 'visual.hbs'));
-            const placeholderPartialSource = yield readFileWithRetry(path.join(templateDir, 'placeholder.hbs'));
-            // Register Partials
-            Handlebars.registerPartial('section', sectionPartialSource);
-            Handlebars.registerPartial('visual', visualPartialSource);
-            Handlebars.registerPartial('placeholder', placeholderPartialSource);
-            // --- Dynamically load and register partials from the partials directory ---
-            const partialsDir = path.join(templateDir, 'partials');
-            try {
-                const partialFiles = yield fs.readdir(partialsDir);
-                console.log(`[Worker:AssembleNote] Found partial files: ${partialFiles.join(', ')}`);
-                for (const filename of partialFiles) {
-                    if (filename.endsWith('.hbs')) {
-                        const partialName = path.basename(filename, '.hbs');
-                        const partialPath = path.join(partialsDir, filename);
-                        try {
-                            const partialSource = yield readFileWithRetry(partialPath);
-                            Handlebars.registerPartial(partialName, partialSource);
-                            console.log(`[Worker:AssembleNote] Registered partial: ${partialName}`);
-                        }
-                        catch (partialReadError) {
-                            console.error(`[Worker:AssembleNote] Failed to read or register partial: ${partialName} from ${partialPath}`, partialReadError);
-                            // Decide if failure to load one partial should prevent all template loading
-                            // For now, log error and continue trying others
-                        }
-                    }
+            const filenames = yield promises_1.default.readdir(partialsDir);
+            // Use Promise.all to wait for all async operations
+            yield Promise.all(filenames.map((filename) => __awaiter(this, void 0, void 0, function* () {
+                if (filename.endsWith('.hbs')) {
+                    const partialName = path_1.default.basename(filename, '.hbs');
+                    const filepath = path_1.default.join(partialsDir, filename);
+                    const template = yield promises_1.default.readFile(filepath, 'utf8');
+                    HB.registerPartial(partialName, template); // Register on the passed instance
+                    // Compile and store separately for the map needed by the template's lookup
+                    partialsMap[partialName] = HB.compile(template, { noEscape: true });
+                    // logger.info(`Registered partial: ${partialName}`); // Log inside if needed
                 }
-            }
-            catch (readPartialsDirError) {
-                if (readPartialsDirError.code === 'ENOENT') {
-                    console.warn(`[Worker:AssembleNote] Partials directory not found at ${partialsDir}. Skipping dynamic partial loading.`);
-                }
-                else {
-                    console.error(`[Worker:AssembleNote] Failed to read partials directory ${partialsDir}:`, readPartialsDirError);
-                    // Potentially re-throw or handle as critical error depending on requirements
-                }
-            }
-            // --- End dynamic partial loading ---
-            // --- Register Syntax Highlighting Helper (Placeholder) ---
-            // TODO: Integrate actual server-side syntax highlighting (e.g., shiki)
-            Handlebars.registerHelper('highlightSyntax', function (code, language) {
-                // Placeholder: Just wrap in pre/code for now
-                // In reality, this would call shiki.codeToHtml(code, { lang: language || 'plaintext' })
-                // Ensure output is marked as safe string
-                const escapedCode = Handlebars.Utils.escapeExpression(code);
-                return new Handlebars.SafeString(`<pre class="shiki-placeholder"><code>${escapedCode}</code></pre>`);
-            });
-            // --- End Syntax Highlighting Helper ---
-            // Register Helpers
-            Handlebars.registerHelper('eq', function (a, b, options) {
-                var _a, _b;
-                // Robust check for block vs inline
-                if (options && typeof options.fn === 'function') {
-                    // Block form
-                    return a == b ? options.fn(this) : (_b = (_a = options.inverse) === null || _a === void 0 ? void 0 : _a.call(options, this)) !== null && _b !== void 0 ? _b : '';
-                }
-                else {
-                    // Inline form - return boolean
-                    return a == b;
-                }
-            });
-            // Helper to find the visual object by placeholderId
-            Handlebars.registerHelper('findVisual', function (placeholderId, visualsMap, options) {
-                var _a, _b;
-                console.log(`[Helper:findVisual] Looking for ID: "${placeholderId}"`);
-                console.log(`[Helper:findVisual] Available keys in visualsMap: ${visualsMap ? Object.keys(visualsMap).join(', ') : 'null/undefined'}`);
-                const visual = visualsMap && placeholderId ? visualsMap[placeholderId] : null;
-                console.log(`[Helper:findVisual] Found visual: ${!!visual}`);
-                // Robust check for block vs inline
-                if (options && typeof options.fn === 'function') {
-                    // Block form
-                    return visual ? options.fn(visual) : (_b = (_a = options.inverse) === null || _a === void 0 ? void 0 : _a.call(options, this)) !== null && _b !== void 0 ? _b : '';
-                }
-                else {
-                    // Inline form - return the visual object itself or null (adjust if boolean needed)
-                    return visual;
-                }
-            });
-            // Add more helpers as needed
-            // Compile Main Template
-            compiledTemplates.main = Handlebars.compile(mainTemplateSource);
-            templatesLoaded = true;
-            console.log('[Worker:AssembleNote] Handlebars templates loaded and compiled successfully.');
+            })));
+            logger_1.logger.info(`Total partials loaded and registered: ${Object.keys(HB.partials).length}`);
         }
         catch (error) {
-            console.error('[Worker:AssembleNote] CRITICAL: Failed to load or compile Handlebars templates:', error);
-            // Prevent job execution if templates fail to load
-            templatesLoaded = false;
+            logger_1.logger.error('Error loading Handlebars partials:', error);
+            throw error;
+        }
+        return partialsMap; // Return the map of compiled partials
+    });
+}
+// ==============================================
+// Content Type Normalization
+// ==============================================
+function normalizeType(raw) {
+    if (!raw)
+        return 'paragraph'; // Default to paragraph if undefined/empty
+    return raw
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_]+/g, '-')
+        .replace(/[^\w\-]/g, '');
+}
+// Recursive function to normalize contentTypes in the structure
+function normalizeStructure(blocks) {
+    if (!Array.isArray(blocks)) {
+        return;
+    }
+    blocks.forEach((block) => {
+        // Cast the result of normalizeType to the specific enum type
+        block.contentType = normalizeType(block.contentType);
+        if (block.subStructure) {
+            normalizeStructure(block.subStructure);
         }
     });
 }
-// -----------------------------------------------
-/**
- * Job processor for assembling the final note content.
- */
-function assembleNoteJob(job) {
-    return __awaiter(this, void 0, void 0, function* () {
+// ==============================================
+// Visual Hydration Logic
+// ==============================================
+// Function to recursively hydrate visual placeholders in the structure
+function hydrateVisuals(blocks, visualsMap) {
+    if (!Array.isArray(blocks)) {
+        return;
+    }
+    blocks.forEach((block) => {
+        var _a, _b, _c, _d, _e;
+        if (block.contentType === 'visual_placeholder' && block.placeholderId) {
+            const visualData = visualsMap.get(block.placeholderId);
+            // <<< Add detailed logging for VISUAL_3 >>>
+            if (block.placeholderId === 'VISUAL_3') {
+                logger_1.logger.info({
+                    placeholderId: block.placeholderId,
+                    foundVisualData: visualData ? { id: visualData.id, status: visualData.status, imageUrl: ((_a = visualData.imageUrl) === null || _a === void 0 ? void 0 : _a.substring(0, 50)) + '...' } : null
+                }, 'Processing VISUAL_3 inside hydrateVisuals');
+            }
+            // <<< End logging >>>
+            if (visualData) {
+                if (visualData.status === 'COMPLETED' && visualData.imageUrl) {
+                    // Hydrate with successful visual data
+                    block.contentType = 'visual';
+                    block.imageUrl = visualData.imageUrl;
+                    block.altText = (_b = visualData.altText) !== null && _b !== void 0 ? _b : visualData.placeholderId; // Fallback alt text
+                    block.sourceUrl = (_c = visualData.sourceUrl) !== null && _c !== void 0 ? _c : undefined; // Use nullish coalescing for type compatibility
+                    block.sourceTitle = (_d = visualData.sourceTitle) !== null && _d !== void 0 ? _d : undefined; // Use nullish coalescing for type compatibility
+                    // Remove placeholder-specific fields if they exist
+                    delete block.placeholderId;
+                    delete block.description;
+                }
+                else {
+                    // Replace with placeholder for failed/pending visuals
+                    block.contentType = 'placeholder';
+                    block.reason = (_e = visualData.errorMessage) !== null && _e !== void 0 ? _e : 'Visual processing is not complete or failed.';
+                    // Remove placeholder-specific fields if they exist
+                    delete block.placeholderId;
+                    // Keep description as it might be useful context for the failure
+                }
+            }
+            else {
+                // Visual data not found in map (should not happen if process is correct)
+                logger_1.logger.warn(`Visual data not found for placeholderId: ${block.placeholderId}`);
+                block.contentType = 'placeholder';
+                block.reason = `Data for visual placeholder ${block.placeholderId} was unexpectedly missing.`;
+                delete block.placeholderId;
+            }
+        }
+        // Recursively process subStructure if it exists
+        if (block.subStructure && Array.isArray(block.subStructure)) {
+            hydrateVisuals(block.subStructure, visualsMap);
+        }
+    });
+}
+// ==============================================
+// Whitelist Check (Dev Only)
+// ==============================================
+function checkContentTypes(blocks, knownTypes) {
+    if (!Array.isArray(blocks)) {
+        return;
+    }
+    blocks.forEach((block) => {
         var _a;
+        if (!knownTypes.has(block.contentType)) {
+            // Log details about the block causing the error
+            const errorContext = {
+                contentType: block.contentType,
+                contentPreview: (_a = block.content) === null || _a === void 0 ? void 0 : _a.substring(0, 50),
+                placeholderId: block.placeholderId,
+                blockKeys: Object.keys(block),
+            };
+            logger_1.logger.error({ errorContext }, `Discovered unknown contentType during whitelist check: ${block.contentType}`);
+            throw new Error(`Unknown contentType "${block.contentType}" encountered during assembly.`);
+        }
+        if (block.subStructure) {
+            checkContentTypes(block.subStructure, knownTypes);
+        }
+    });
+}
+// ==============================================
+// Main Job Handler (Modified)
+// ==============================================
+function handleAssembleNoteJob(job) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d, _e, _f, _g;
         const { sourceId } = job.data;
-        console.log(`[Worker:AssembleNote] Starting job for source ID: ${sourceId}`);
-        // --- REMOVE DIAGNOSTIC CHECKS --- 
-        /*
-        try {
-          const templateDir = path.resolve(__dirname, '../../templates');
-          const mainTemplatePath = path.join(templateDir, 'main-note.hbs');
-          console.log(`[Worker:AssembleNote] DIAGNOSTIC: Checking access for path: ${mainTemplatePath}`);
-          await fs.access(mainTemplatePath, fs.constants.R_OK); // Check read access
-          console.log(`[Worker:AssembleNote] DIAGNOSTIC: fs.access check PASSED for ${mainTemplatePath}`);
-          const dirContents = await fs.readdir(templateDir);
-          console.log(`[Worker:AssembleNote] DIAGNOSTIC: Contents of ${templateDir}:`, dirContents);
-        } catch (diagError) {
-            console.error(`[Worker:AssembleNote] DIAGNOSTIC: fs.access or fs.readdir FAILED:`, diagError);
-            // Optional: re-throw or handle differently if needed, but let the original logic proceed for now
-            // throw new Error("Diagnostic file access check failed");
-        }
-        */
-        // --- END REMOVED DIAGNOSTIC CHECKS ---
-        // Ensure templates are loaded before proceeding
-        if (!templatesLoaded) {
-            yield loadAndCompileTemplates();
-        }
-        if (!templatesLoaded || !compiledTemplates.main) {
-            throw new Error('Handlebars templates could not be loaded or compiled.');
-        }
+        logger_1.logger.info({ sourceId }, `Starting ASSEMBLE_NOTE job for source ID: ${sourceId}`);
+        // Create a fresh Handlebars instance for this job run
+        const HB = handlebars_1.default.create();
         let sourceRecord;
         try {
-            yield index_1.db.update(schema_1.sources)
-                .set({ processingStage: 'ASSEMBLING_NOTE' })
-                .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
+            // --- Handlebars Setup within Job ---
+            // Register helpers on the isolated instance
+            HB.registerHelper('eq', function (a, b) { return a === b; });
+            HB.registerHelper('lookupPretty', function (obj, field) {
+                const partialName = obj && obj[field] ? obj[field] : 'default';
+                return partialName;
+            });
+            HB.registerHelper('or', function (a, b) { return a || b; });
+            // Load partials using the isolated instance and await completion
+            const partialsDir = path_1.default.join(__dirname, '../../templates/partials');
+            const partialsMap = yield loadPartials(HB, partialsDir);
+            const knownPartialNames = new Set(Object.keys(partialsMap));
+            // Load and compile main template using the isolated instance
+            const mainTemplatePath = path_1.default.join(__dirname, '../../templates/main-note.hbs');
+            const mainTemplateContent = yield promises_1.default.readFile(mainTemplatePath, 'utf8');
+            const compiledMainTemplate = HB.compile(mainTemplateContent, { noEscape: true });
+            // --- End Handlebars Setup ---
+            // 1. Fetch Source Record
             sourceRecord = yield index_1.db.query.sources.findFirst({
                 where: (0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId),
-                with: {
-                    visuals: true,
-                }
             });
-            if (!sourceRecord) {
+            if (!sourceRecord)
                 throw new Error(`Source record not found for ID: ${sourceId}`);
-            }
-            if (!sourceRecord.metadata || !sourceRecord.metadata.aiStructure) {
-                throw new Error(`Source record or AI structure not found for ID: ${sourceId}`);
-            }
-            if (!sourceRecord.userId) {
-                throw new Error(`Source record missing userId for ID: ${sourceId}`);
-            }
-            const aiStructure = sourceRecord.metadata.aiStructure;
-            const fetchedVisuals = sourceRecord.visuals || [];
-            const visualsMap = new Map();
-            // --- MODIFIED LOGIC ---
-            // Create a temporary map of fetched visuals keyed by their DB placeholderId for efficient lookup
-            const fetchedVisualsByDbId = new Map();
-            fetchedVisuals.forEach((v) => {
-                if (v.placeholderId) {
-                    fetchedVisualsByDbId.set(v.placeholderId, v);
-                }
-            });
-            // --- Correction Logic MOVED UP: Ensure correct contentType for visual blocks FIRST ---
-            const expectedPlaceholderIds = new Set(((_a = aiStructure.visualOpportunities) === null || _a === void 0 ? void 0 : _a.map(opp => opp.placeholderId).filter(id => !!id)) || []);
-            let structureModified = false;
-            if (expectedPlaceholderIds.size > 0) {
-                // First pass: Correct existing blocks
-                aiStructure.structure.forEach(block => {
-                    if (block.placeholderId && expectedPlaceholderIds.has(block.placeholderId)) {
-                        if (block.contentType !== 'visual_placeholder') {
-                            console.warn(`[Worker:AssembleNote] Correcting contentType for block with existing placeholderId "${block.placeholderId}". Was "${block.contentType}", changing to "visual_placeholder".`);
-                            block.contentType = 'visual_placeholder';
-                            // Clear potentially wrong content if type was paragraph etc.
-                            block.content = '';
-                            block.items = null;
-                            block.keyPoints = null;
-                            block.level = null;
-                            structureModified = true;
-                        }
-                        // Mark this ID as found in the structure
-                        expectedPlaceholderIds.delete(block.placeholderId);
-                    }
-                });
-                // Second pass: Handle expected IDs that were *missing* from the structure
-                // Note: Inserting blocks might disrupt intended flow. A warning might be safer.
-                if (expectedPlaceholderIds.size > 0) {
-                    console.warn(`[Worker:AssembleNote] The following placeholderIds from visualOpportunities were MISSING in the structure: ${Array.from(expectedPlaceholderIds).join(', ')}. Visuals for these IDs may not render.`);
-                    // // OPTIONAL: Attempt to insert missing blocks (complex logic needed to find location)
-                    // expectedPlaceholderIds.forEach(missingId => {
-                    //     // Find appropriate insertion point (e.g., based on concept similarity?)
-                    //     // This is non-trivial and might place visuals incorrectly.
-                    //     aiStructure.structure.push({
-                    //         contentType: 'visual_placeholder',
-                    //         placeholderId: missingId,
-                    //         content: 'Visual Placeholder (Inserted)',
-                    //         level: null,
-                    //         items: null,
-                    //         keyPoints: null
-                    //     });
-                    //     structureModified = true;
-                    // });
-                }
-            }
-            if (structureModified) {
-                console.log("[Worker:AssembleNote] aiStructure was modified to correct visual placeholder contentTypes.");
-                // Optional: Save the corrected structure back to metadata if desired (adds DB write)
-                // await db.update(sources).set({ metadata: sourceRecord.metadata }).where(eq(sources.id, sourceId));
-            }
-            // --- End NEW Robust Correction Logic ---
-            // Iterate through the NOW CORRECTED structure blocks to populate the final visualsMap
-            aiStructure.structure.forEach(block => {
-                if (block.contentType === 'visual_placeholder' && block.placeholderId) {
-                    // Use the placeholderId FROM THE STRUCTURE to find the fetched visual data using the Map
-                    const matchingVisual = fetchedVisualsByDbId.get(block.placeholderId);
-                    if (matchingVisual) {
-                        // Add to the final map using the structure's placeholderId as the key
-                        visualsMap.set(block.placeholderId, matchingVisual);
-                    }
-                    else {
-                        // Log a warning if a placeholder in the structure doesn't have matching visual data
-                        console.warn(`[Worker:AssembleNote] Warning: No matching visual data found in DB for placeholderId: ${block.placeholderId} found in structure for source ${sourceId}`);
-                    }
-                }
-            });
-            // --- END MODIFIED LOGIC (Now correctly ordered) ---
-            // <<< --- ADD LOGGING HERE --- >>>
-            console.log(`[Worker:AssembleNote] Final visualsMap keys before Object.fromEntries: ${Array.from(visualsMap.keys()).join(', ')}`);
-            console.log(`[Worker:AssembleNote] Final visualsMap size: ${visualsMap.size}`);
-            // <<< ------------------------ >>>
-            // Prepare data for the main template
-            const templateData = {
-                title: aiStructure.title,
-                summary: aiStructure.summary,
-                structure: aiStructure.structure, // Pass the whole structure array
-                visuals: Object.fromEntries(visualsMap) // Convert map to object for Handlebars context
-            };
-            // Render HTML using Handlebars
-            const htmlContent = compiledTemplates.main(templateData);
-            // --- Generate and Save Tags --- 
-            let generatedTagIds = [];
+            if (!sourceRecord.metadata)
+                throw new Error(`Source record metadata missing for ID: ${sourceId}.`);
+            // 2. Extract and Parse Lesson Structure
+            const metadata = sourceRecord.metadata;
+            const lessonStructureJson = metadata.lessonStructureJson;
+            if (!lessonStructureJson)
+                throw new Error(`Source ${sourceId} is missing lessonStructureJson.`);
+            let parsedStructure;
             try {
-                // Generate tags from the original extracted text, not generated markdown
-                const sourceTextForTags = sourceRecord.extractedText || '';
-                const finalLanguageCode = sourceRecord.languageCode || 'eng';
-                console.log(`[Worker:AssembleNote] Using languageCode (ISO 639-3): ${finalLanguageCode} from source column for tag generation for source ID: ${sourceId}`);
-                console.log(`[Worker:AssembleNote] Generating tags for source ID: ${sourceId}...`);
-                // Pass sourceTextForTags instead of markdownContent
-                const generatedTagNames = yield ai_service_1.aiService.generateTags(sourceTextForTags, finalLanguageCode);
-                console.log(`[Worker:AssembleNote] Generated ${generatedTagNames.length} tag names:`, generatedTagNames);
-                if (generatedTagNames.length > 0) {
-                    // Find existing tags or create new ones (case-insensitive)
-                    const tagPromises = generatedTagNames.map((tagName) => __awaiter(this, void 0, void 0, function* () {
-                        const normalizedTagName = tagName.trim().toLowerCase(); // Normalize for lookup
-                        if (!normalizedTagName)
-                            return null; // Skip empty tags
-                        let existingTag = yield index_1.db.query.tags.findFirst({
-                            where: (0, drizzle_orm_1.ilike)(schema_1.tags.name, normalizedTagName), // Case-insensitive search
+                parsedStructure = ai_types_1.aiStructuredContentSchema.parse(lessonStructureJson);
+            }
+            catch (parseError) {
+                logger_1.logger.error({ sourceId, parseError }, 'Failed to parse lessonStructureJson');
+                throw new Error(`Invalid lessonStructureJson format for source ${sourceId}.`);
+            }
+            // 5. Fetch Associated Visuals
+            const visualRecords = yield index_1.db.query.visuals.findMany({
+                where: (0, drizzle_orm_1.eq)(schema_1.visuals.sourceId, sourceId),
+            });
+            logger_1.logger.info({ sourceId, visualCount: visualRecords.length }, 'Fetched visuals.');
+            // 6. Populate Visuals Map
+            const visualsMap = new Map();
+            visualRecords.forEach(record => {
+                if (record.placeholderId)
+                    visualsMap.set(record.placeholderId, record);
+            });
+            // 7. Hydrate Visuals in the Structure
+            hydrateVisuals(parsedStructure.structure, visualsMap);
+            logger_1.logger.info({ sourceId }, 'Hydrated visual placeholders.');
+            // 8. Normalize Content Types **AFTER** hydration
+            normalizeStructure(parsedStructure.structure);
+            logger_1.logger.info({ sourceId }, 'Normalized content types in structure.');
+            // 9. Whitelist Check (Run only in development, AFTER normalization)
+            if (process.env.NODE_ENV === 'development') {
+                logger_1.logger.info({ sourceId }, 'Running development content type whitelist check...');
+                checkContentTypes(parsedStructure.structure, knownPartialNames);
+                logger_1.logger.info({ sourceId }, 'Whitelist check passed.');
+            }
+            // <<< ADD LOGGING HERE >>>
+            // Add more detailed logging right before rendering to inspect the final state
+            if (process.env.NODE_ENV === 'development') {
+                logger_1.logger.info({
+                    sourceId,
+                    partialsMapKeys: Array.from(knownPartialNames),
+                    structureSample: parsedStructure.structure.slice(0, 3).map(block => {
+                        var _a, _b;
+                        return ({
+                            contentType: block.contentType,
+                            contentPreview: (_a = block.content) === null || _a === void 0 ? void 0 : _a.substring(0, 30),
+                            subStructureSample: (_b = block.subStructure) === null || _b === void 0 ? void 0 : _b.slice(0, 2).map(sub => ({ contentType: sub.contentType }))
                         });
-                        if (existingTag) {
-                            console.log(`[Worker:AssembleNote] Found existing tag: ID=${existingTag.id}, Name=${existingTag.name}`);
-                            return existingTag.id;
-                        }
-                        else {
-                            const originalCasingTagName = tagName.trim();
-                            console.log(`[Worker:AssembleNote] Attempting to insert new tag: Name=${originalCasingTagName}`);
-                            const newTagResult = yield index_1.db.insert(schema_1.tags)
-                                .values({ name: originalCasingTagName })
-                                .onConflictDoNothing({ target: schema_1.tags.name })
-                                .returning({ id: schema_1.tags.id });
-                            if (newTagResult && newTagResult.length > 0 && newTagResult[0].id) {
-                                console.log(`[Worker:AssembleNote] Successfully inserted new tag: ID=${newTagResult[0].id}, Name=${originalCasingTagName}`);
-                                return newTagResult[0].id;
-                            }
-                            else {
-                                // Conflict occurred or insert failed, re-fetch *confidently* by normalized name
-                                console.log(`[Worker:AssembleNote] Conflict or failed insert for tag '${originalCasingTagName}'. Re-fetching ID by normalized name: '${normalizedTagName}'`);
-                                const conflictedTag = yield index_1.db.query.tags.findFirst({
-                                    where: (0, drizzle_orm_1.ilike)(schema_1.tags.name, normalizedTagName),
-                                });
-                                if (conflictedTag) {
-                                    console.log(`[Worker:AssembleNote] Re-fetched tag after conflict: ID=${conflictedTag.id}, Name=${conflictedTag.name}`);
-                                    return conflictedTag.id;
-                                }
-                                else {
-                                    // This case should be rare if the conflict target is name uniqueness
-                                    console.error(`[Worker:AssembleNote] CRITICAL: Could not insert or re-fetch tag: '${originalCasingTagName}'`);
-                                    return null;
-                                }
-                            }
-                        }
-                    }));
-                    const resolvedTagIds = yield Promise.all(tagPromises);
-                    generatedTagIds = resolvedTagIds.filter((id) => id !== null); // Filter out nulls
-                    console.log(`[Worker:AssembleNote] Resolved tag IDs:`, generatedTagIds);
-                    console.log(`[Worker:AssembleNote] Tag IDs to be linked:`, generatedTagIds);
-                }
+                    })
+                }, "State before rendering");
             }
-            catch (tagError) {
-                // Log tag generation/saving error but don't fail the whole job
-                console.error(`[Worker:AssembleNote] Error generating or saving tags for source ID ${sourceId}:`, tagError);
+            // 10. Prepare Template Data (Pass the compiled partials map)
+            const templateData = {
+                title: (_a = parsedStructure.title) !== null && _a !== void 0 ? _a : 'Untitled Note',
+                summary: (_b = parsedStructure.summary) !== null && _b !== void 0 ? _b : '',
+                structure: parsedStructure.structure,
+                partialsMap: partialsMap, // Pass map for the template's lookup helper
+            };
+            // 11. Render HTML (Uses the compiled template from isolated HB instance)
+            const generatedHtml = compiledMainTemplate(templateData);
+            logger_1.logger.info({ sourceId }, 'Rendered HTML template.');
+            // 12. Create/Update Note Record
+            const existingNote = yield index_1.db.query.notes.findFirst({
+                where: (0, drizzle_orm_1.eq)(schema_1.notes.sourceId, sourceId),
+                columns: { id: true },
+            });
+            let noteId;
+            if (existingNote) {
+                // Update existing note
+                noteId = existingNote.id;
+                yield index_1.db.update(schema_1.notes).set({
+                    title: (_c = parsedStructure.title) !== null && _c !== void 0 ? _c : 'Untitled Note',
+                    summary: (_d = parsedStructure.summary) !== null && _d !== void 0 ? _d : '',
+                    htmlContent: generatedHtml,
+                    sourceType: sourceRecord.sourceType,
+                    languageCode: sourceRecord.languageCode,
+                    updatedAt: new Date(),
+                }).where((0, drizzle_orm_1.eq)(schema_1.notes.id, noteId));
+                logger_1.logger.info({ noteId, sourceId }, `Updated existing note.`);
             }
-            // ------------------------
-            // Use transaction for note creation and tag linking
-            yield index_1.db.transaction((tx) => __awaiter(this, void 0, void 0, function* () {
-                var _a, _b;
-                // Fallback: infer sourceType if missing
-                let finalSourceType = sourceRecord.sourceType;
-                if (!finalSourceType && sourceRecord.originalFilename) {
-                    const ext = (_a = sourceRecord.originalFilename.split('.').pop()) === null || _a === void 0 ? void 0 : _a.toLowerCase();
-                    if (ext === 'pdf')
-                        finalSourceType = 'PDF';
-                    else if (ext === 'mp3' || ext === 'wav' || ext === 'm4a')
-                        finalSourceType = 'AUDIO';
-                    else if (ext === 'jpg' || ext === 'jpeg' || ext === 'png')
-                        finalSourceType = 'IMAGE';
-                    else
-                        finalSourceType = 'TEXT';
-                }
-                // Language code (ISO 639-3) from dedicated column, default to 'eng'
-                const finalLanguageCode = sourceRecord.languageCode || 'eng';
-                // Insert the note
-                const insertedNotes = yield tx.insert(schema_1.notes).values({
+            else {
+                // Insert new note
+                if (!sourceRecord.userId)
+                    throw new Error(`UserId missing on source ${sourceId}.`);
+                const newNoteResult = yield index_1.db.insert(schema_1.notes).values({
                     sourceId: sourceId,
-                    userId: sourceRecord.userId, // Non-null after check
-                    title: aiStructure.title,
-                    summary: aiStructure.summary,
-                    markdownContent: null, // Set markdownContent to null as we generate HTML directly
-                    htmlContent: htmlContent,
+                    userId: sourceRecord.userId,
+                    title: (_e = parsedStructure.title) !== null && _e !== void 0 ? _e : 'Untitled Note',
+                    summary: (_f = parsedStructure.summary) !== null && _f !== void 0 ? _f : '',
+                    htmlContent: generatedHtml,
+                    markdownContent: '',
+                    languageCode: sourceRecord.languageCode,
+                    sourceType: sourceRecord.sourceType,
                     favorite: false,
-                    sourceType: finalSourceType,
-                    languageCode: finalLanguageCode, // Save the ISO 639-3 code
-                }).returning({ noteId: schema_1.notes.id });
-                const newNoteId = (_b = insertedNotes[0]) === null || _b === void 0 ? void 0 : _b.noteId;
-                if (!newNoteId) {
-                    throw new Error("Failed to insert note or retrieve ID.");
-                }
-                console.log(`[Worker:AssembleNote] Note record created with ID: ${newNoteId}`);
-                // Link tags to the new note
-                if (generatedTagIds.length > 0) {
-                    console.log(`[Worker:AssembleNote] DEBUG: Linking tags with IDs: ${generatedTagIds.join(', ')} to note ID: ${newNoteId}`);
-                    const notesTagsValues = generatedTagIds.map(tagId => ({
-                        noteId: newNoteId,
-                        tagId: tagId,
-                    }));
-                    yield tx.insert(schema_1.notesToTags).values(notesTagsValues);
-                    console.log(`[Worker:AssembleNote] Linked ${generatedTagIds.length} tags to note ID: ${newNoteId}`);
-                }
-                else {
-                    console.log(`[Worker:AssembleNote] DEBUG: No generated tag IDs to link for note ID: ${newNoteId}`);
-                }
-                // Update source status within the transaction
-                yield tx.update(schema_1.sources)
-                    .set({ processingStatus: 'COMPLETED', processingStage: 'COMPLETED' })
-                    .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
-            }));
-            console.log(`[Worker:AssembleNote] Successfully finished job for source ID: ${sourceId}. Note created/tags linked. Source marked COMPLETED.`);
+                }).returning({ id: schema_1.notes.id });
+                if (!((_g = newNoteResult === null || newNoteResult === void 0 ? void 0 : newNoteResult[0]) === null || _g === void 0 ? void 0 : _g.id))
+                    throw new Error(`Failed to insert note for source ${sourceId}`);
+                noteId = newNoteResult[0].id;
+                logger_1.logger.info({ noteId, sourceId }, `Created new note.`);
+            }
+            // 13. Update Source Status to COMPLETED
+            yield index_1.db.update(schema_1.sources).set({
+                processingStatus: 'COMPLETED',
+                processingStage: 'Note Assembled',
+                processingError: null,
+                updatedAt: new Date(),
+            }).where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
+            logger_1.logger.info({ sourceId, noteId }, `Marked source ${sourceId} as COMPLETED.`);
         }
         catch (error) {
-            console.error(`[Worker:AssembleNote] Error processing job for source ID: ${sourceId}`, error);
-            yield index_1.db.update(schema_1.sources)
-                .set({
-                processingStatus: 'FAILED',
-                processingError: error instanceof Error ? error.message : 'Error assembling note content',
-                processingStage: 'ASSEMBLING_NOTE'
-            })
-                .where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
-            throw error;
+            logger_1.logger.error({ sourceId, error: error.message, stack: error.stack }, `Error in ASSEMBLE_NOTE job for source ${sourceId}`);
+            // Update source status to FAILED
+            if (sourceId) {
+                try {
+                    yield index_1.db.update(schema_1.sources).set({
+                        processingStatus: 'FAILED',
+                        processingStage: 'Note Assembly Error',
+                        processingError: error.message || 'Unknown assembly error',
+                        updatedAt: new Date(),
+                    }).where((0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId));
+                }
+                catch (dbError) {
+                    logger_1.logger.error({ sourceId, dbError: dbError.message }, 'Failed to update source status to FAILED.');
+                }
+            }
+            throw error; // Re-throw for BullMQ
         }
     });
 }

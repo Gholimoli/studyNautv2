@@ -45,15 +45,30 @@ export async function generateVisualJob(job: Job<GenerateVisualPayload>): Promis
 
     // 3. Call Image Search Utility to get multiple results
     console.log(`[Worker:GenerateVisual] Searching for images for visual ID: ${visualId} with query: "${query.substring(0, 50)}..."`);
-    const imageResults: ImageSearchResult[] | null = await searchImages(query, 3); // Request top 3 images
+    let imageResults: ImageSearchResult[] | null = null;
+    let searchError: Error | null = null;
+    try {
+      imageResults = await searchImages(query, 5); // Request top 5 images for better selection pool
+    } catch (error) {
+      searchError = error instanceof Error ? error : new Error('Unknown image search error');
+      console.error(`[Worker:GenerateVisual] Image search failed for visual ID: ${visualId}`, searchError);
+    }
+    
+    // Check for specific errors like account limits
+    const isAccountLimitError = searchError?.message?.includes('Your account has run out of searches');
 
-    if (imageResults === null) {
+    if (searchError) {
         // Handle image search API error
-        console.error(`[Worker:GenerateVisual] Image search API error for visual ID: ${visualId}`);
+        console.error(`[Worker:GenerateVisual] Image search API error for visual ID: ${visualId}: ${searchError.message}`);
         await db.update(visuals)
-          .set({ status: 'FAILED', errorMessage: 'Image search API error' })
+          .set({ 
+              status: 'FAILED', 
+              errorMessage: isAccountLimitError 
+                  ? 'Image search failed: Account limit reached.' 
+                  : `Image search API error: ${searchError.message.substring(0, 200)}` 
+          })
           .where(eq(visuals.id, visualId));
-    } else if (imageResults.length === 0) {
+    } else if (!imageResults || imageResults.length === 0) {
         // Handle no results found initially
         console.warn(`[Worker:GenerateVisual] No image results returned by search API for visual ID: ${visualId}`);
         await db.update(visuals)
@@ -191,8 +206,12 @@ function findBestImageBySimilarity(
             targetDescription.toLowerCase(), 
             result.altText.toLowerCase() // Use altText (which is image title)
         );
-        console.log(`[Worker:GenerateVisual] - Image: "${result.altText.substring(0,50)}..." | Similarity: ${similarity.toFixed(3)}`);
-        return { ...result, score: similarity };
+        // Add a small bonus for having source info, penalize slightly if missing
+        const attributionBonus = (result.sourceUrl && result.sourceTitle) ? 0.05 : -0.02;
+        const finalScore = similarity + attributionBonus;
+
+        console.log(`[Worker:GenerateVisual] - Image: "${result.altText.substring(0,50)}..." | Sim: ${similarity.toFixed(3)} | Attr Bonus: ${attributionBonus.toFixed(3)} | Final: ${finalScore.toFixed(3)}`);
+        return { ...result, score: finalScore };
     });
 
     // Sort by score descending

@@ -1,0 +1,10 @@
+{{!-- 
+  Partial: explanation.hbs
+  Context: Assumes 'content' field contains the explanation text.
+  Description: Renders explanation content, likely similar to a paragraph.
+--}}
+{{#if content}}
+<div class="my-4 text-foreground">
+    {{{content}}}
+</div> 
+{{/if}} 

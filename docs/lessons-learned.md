@@ -181,4 +181,32 @@ This document summarizes critical insights and challenges encountered during the
 
 *   Made the `eq` Handlebars helper in `assembleNote.job.ts` robust by adding checks for `null`/`undefined` arguments and handling block vs. inline calls correctly.
 *   Modified the frontend `NoteDetailPage.tsx` component to remove `ReactMarkdown` and instead render the `note.htmlContent` field using `dangerouslySetInnerHTML`.
-*   Created and used a `delete-job.ts` script to remove potentially corrupted/stuck failed jobs from the queue before resubmitting content. 
+*   Created and used a `delete-job.ts` script to remove potentially corrupted/stuck failed jobs from the queue before resubmitting content.
+
+## 14. Visual Placeholder Pipeline Debugging (April 2025)
+
+### Insights
+
+*   **AI Output Consistency:** Different AI models (primary vs. fallback) might return slightly different JSON structures or omit optional fields. For example, a fallback provider might include `visual_placeholder` blocks in the main `structure` but not populate the `description` field within those blocks (expecting it only in the top-level `visualOpportunities` array).
+*   **Job Logic Dependencies:** Logic relying on specific fields being present (like checking `block.description` in `findVisualPlaceholders`) needs to be robust against variations in AI output. It's often better to fetch required data from the canonical source (e.g., `visualOpportunities` array) using a common ID (`placeholderId`).
+*   **Job Sequencing:** The order of operations within a job is critical. Normalizing data (e.g., `normalizeType` in `assembleNote.job.ts`) before processing it based on its original state (e.g., `hydrateVisuals` looking for `visual_placeholder`) can lead to logic failures.
+*   **Triggering Dependent Jobs:** Relying on multiple concurrent jobs (`GENERATE_VISUAL`) to correctly trigger a single subsequent job (`ASSEMBLE_NOTE`) requires careful state management. Each completing job must check if it's the *last* one for the given context (e.g., `sourceId`) before triggering the next step. Using database status/stage fields (`sources.processingStage`, `visuals.status`) is essential for this coordination.
+*   **Premature Job Execution:** A job might be enqueued prematurely (e.g., due to a previous failed run not being cleaned up or a logic bug) and run before its dependencies are met, leading to incomplete results (like notes assembled before visual generation completes).
+*   **External Image URL Reliability:** Image URLs obtained from external searches (SerpAPI/Serper) might be temporary, protected, or otherwise unsuitable for direct embedding (e.g., `lookaside.fbsbx.com` URLs). This can result in broken images even if the pipeline logic is correct.
+
+### Challenges Faced
+
+*   **Placeholders Not Detected:** `PROCESS_VISUAL_PLACEHOLDERS` initially failed to find placeholders because the `findVisualPlaceholders` function incorrectly required a `description` field within the placeholder block itself.
+*   **Assembly Before Visuals Ready:** The `ASSEMBLE_NOTE` job was running before `GENERATE_VISUAL` jobs completed, resulting in notes with fallback placeholders instead of images.
+*   **Broken Images:** Even after fixing the pipeline, one image failed to render because its URL (from `lookaside.fbsbx.com`) was not embeddable.
+
+### Solutions Implemented
+
+*   Relaxed the check in `findVisualPlaceholders` to only require `contentType` and `placeholderId`.
+*   Modified `PROCESS_VISUAL_PLACEHOLDERS` to fetch visual details (`description`, `concept`, `searchQuery`) from the `visualOpportunities` array based on the found `placeholderId`.
+*   Corrected the order of operations in `ASSEMBLE_NOTE`, ensuring `hydrateVisuals` runs *before* `normalizeStructure`.
+*   Ensured `PROCESS_VISUAL_PLACEHOLDERS` sets the `sources.processingStage` to `GENERATING_VISUALS`.
+*   Verified that the completion check in `generateVisual.job.ts` correctly counts remaining visuals and checks the source stage before enqueueing `ASSEMBLE_NOTE`.
+*   Removed premature `ASSEMBLE_NOTE` enqueueing from `processVisualPlaceholders.job.ts`.
+*   Added debug logging to `visual.hbs` to display the problematic URL.
+*   (Next Step Recommended): Implement filtering in `generateVisual.job.ts` to discard problematic image URLs (e.g., from `fbsbx.com`). 

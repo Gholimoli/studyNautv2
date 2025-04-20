@@ -1,0 +1,16 @@
+{{!-- 
+  Partial: list.hbs
+  Context: LessonBlock (this)
+  Renders an unordered list (ul) from the block's items array.
+  Assumes items is an array of strings.
+--}}
+{{#if items}}
+  <ul class="list-disc pl-6 mb-4 space-y-1 text-foreground">
+    {{#each items}}
+      <li>{{{this}}}</li> {{!-- Use triple braces in case items contain simple HTML --}}
+    {{/each}}
+  </ul>
+{{else}}
+  {{!-- Optional: Render something if items array is missing or empty --}}
+  {{!-- <p class="text-muted-foreground italic">(List content missing)</p> --}}
+{{/if}} 

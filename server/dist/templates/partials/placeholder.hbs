@@ -1,0 +1,18 @@
+{{!-- 
+  Partial: placeholder.hbs
+  Context: VisualRecord (this) - Passed via findVisual helper
+  Renders a placeholder when visual generation failed or no image was found.
+--}}
+<div class="my-6 p-4 border border-dashed border-border rounded-lg bg-muted text-center text-muted-foreground max-w-xl mx-auto">
+  <p class="font-semibold mb-1">Visual Placeholder</p>
+  {{#if concept}}
+  <p class="text-sm italic mb-2">Concept: {{concept}}</p>
+  {{/if}}
+  {{#if (eq status "FAILED")}}
+  <p class="text-sm text-destructive">Failed to load visual: {{#if errorMessage}}{{errorMessage}}{{else}}An unknown error occurred.{{/if}}</p>
+  {{else if (eq status "NO_IMAGE_FOUND")}}
+   <p class="text-sm text-amber-600">{{#if errorMessage}}{{errorMessage}}{{else}}No suitable visual found.{{/if}}</p>
+  {{else}}
+   <p class="text-sm">Visual generation pending or status unknown ({{status}}).</p>
+  {{/if}}
+</div> 

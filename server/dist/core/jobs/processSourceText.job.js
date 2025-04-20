@@ -54,7 +54,8 @@ function processSourceTextJob(job) {
             console.log(`[Worker:ProcessSourceText] AI analysis successful for source ID: ${sourceId}`);
             // 4. Update source record with AI result (store structured content in metadata)
             // Combine with existing metadata if any
-            const updatedMetadata = Object.assign(Object.assign({}, (sourceRecord.metadata || {})), { aiStructure: aiResult // Contains title, summary, structure array
+            const existingMetadata = (sourceRecord.metadata || {});
+            const updatedMetadata = Object.assign(Object.assign({}, existingMetadata), { lessonStructureJson: aiResult // Use the correct key: lessonStructureJson
              });
             yield index_1.db.update(schema_1.sources)
                 .set({

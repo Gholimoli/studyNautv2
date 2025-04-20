@@ -1,6 +1,15 @@
-<div class="my-6 p-4 border border-dashed border-border rounded-lg bg-muted/50 text-center">
-  <p class="text-sm text-muted-foreground italic">
-    Visual placeholder: {{concept}}
+<div class="my-6 p-6 border border-dashed border-border rounded-lg bg-muted/50 text-center flex flex-col items-center justify-center gap-2">
+  {{!-- Add an SVG icon for visual placeholder --}}
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-off w-8 h-8 text-muted-foreground opacity-50">
+    <path d="M10.41 10.41a2 2 0 0 0-2.83 0L6 12"/>
+    <path d="M13.18 13.18a2 2 0 0 0 0 2.83L18 21"/>
+    <path d="M3.5 3.5 20 20"/>
+    <path d="M14.5 14.5 21 21"/>
+    <path d="M10 21H6a2 2 0 0 1-2-2V6"/>
+    <path d="M21 13V6a2 2 0 0 0-2-2H7.5"/>
+  </svg>
+  <p class="text-sm text-muted-foreground">
+    Visual not available: {{concept}}
   </p>
   {{#if errorMessage}}
     <p class="text-xs text-destructive mt-1">({{errorMessage}})</p>

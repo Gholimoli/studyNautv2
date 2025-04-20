@@ -62,7 +62,7 @@ const stringSimilarity = __importStar(require("string-similarity"));
  */
 function generateVisualJob(job) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f;
+        var _a, _b, _c, _d, _e, _f, _g;
         const { visualId, sourceId } = job.data;
         console.log(`[Worker:GenerateVisual] Starting job for visual ID: ${visualId} (Source: ${sourceId})`);
         let visualRecord;
@@ -86,15 +86,30 @@ function generateVisualJob(job) {
             }
             // 3. Call Image Search Utility to get multiple results
             console.log(`[Worker:GenerateVisual] Searching for images for visual ID: ${visualId} with query: "${query.substring(0, 50)}..."`);
-            const imageResults = yield (0, image_search_1.searchImages)(query, 3); // Request top 3 images
-            if (imageResults === null) {
+            let imageResults = null;
+            let searchError = null;
+            try {
+                imageResults = yield (0, image_search_1.searchImages)(query, 5); // Request top 5 images for better selection pool
+            }
+            catch (error) {
+                searchError = error instanceof Error ? error : new Error('Unknown image search error');
+                console.error(`[Worker:GenerateVisual] Image search failed for visual ID: ${visualId}`, searchError);
+            }
+            // Check for specific errors like account limits
+            const isAccountLimitError = (_b = searchError === null || searchError === void 0 ? void 0 : searchError.message) === null || _b === void 0 ? void 0 : _b.includes('Your account has run out of searches');
+            if (searchError) {
                 // Handle image search API error
-                console.error(`[Worker:GenerateVisual] Image search API error for visual ID: ${visualId}`);
+                console.error(`[Worker:GenerateVisual] Image search API error for visual ID: ${visualId}: ${searchError.message}`);
                 yield index_1.db.update(schema_1.visuals)
-                    .set({ status: 'FAILED', errorMessage: 'Image search API error' })
+                    .set({
+                    status: 'FAILED',
+                    errorMessage: isAccountLimitError
+                        ? 'Image search failed: Account limit reached.'
+                        : `Image search API error: ${searchError.message.substring(0, 200)}`
+                })
                     .where((0, drizzle_orm_1.eq)(schema_1.visuals.id, visualId));
             }
-            else if (imageResults.length === 0) {
+            else if (!imageResults || imageResults.length === 0) {
                 // Handle no results found initially
                 console.warn(`[Worker:GenerateVisual] No image results returned by search API for visual ID: ${visualId}`);
                 yield index_1.db.update(schema_1.visuals)
@@ -109,7 +124,7 @@ function generateVisualJob(job) {
                     console.log(`[Worker:GenerateVisual] Updating DB for visual ID ${visualId} with selected image: ${selectedImage.imageUrl.substring(0, 80)}...`);
                     // --- Improved Alt Text --- 
                     // Prioritize the description provided by the AI for better context
-                    const finalAltText = ((_b = visualRecord === null || visualRecord === void 0 ? void 0 : visualRecord.description) === null || _b === void 0 ? void 0 : _b.trim()) || selectedImage.altText;
+                    const finalAltText = ((_c = visualRecord === null || visualRecord === void 0 ? void 0 : visualRecord.description) === null || _c === void 0 ? void 0 : _c.trim()) || selectedImage.altText;
                     console.log(`[Worker:GenerateVisual] Using alt text: "${finalAltText.substring(0, 80)}..."`);
                     // -----------------------
                     yield index_1.db.update(schema_1.visuals)
@@ -139,7 +154,7 @@ function generateVisualJob(job) {
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.visuals.sourceId, sourceId), 
             // Check for statuses that mean processing is NOT finished
             (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PENDING'), (0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PENDING_GENERATION'), (0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PROCESSING'))));
-            const remainingCount = (_d = (_c = pendingOrProcessing[0]) === null || _c === void 0 ? void 0 : _c.count) !== null && _d !== void 0 ? _d : 1; // Assume 1 if query fails, to be safe
+            const remainingCount = (_e = (_d = pendingOrProcessing[0]) === null || _d === void 0 ? void 0 : _d.count) !== null && _e !== void 0 ? _e : 1; // Assume 1 if query fails, to be safe
             console.log(`[Worker:GenerateVisual] Checking completion for source ${sourceId}. Remaining visuals needing processing: ${remainingCount}`);
             if (remainingCount === 0) {
                 // Check if the source itself is still in the right stage
@@ -180,7 +195,7 @@ function generateVisualJob(job) {
                     const pendingOrProcessing = yield index_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
                         .from(schema_1.visuals)
                         .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.visuals.sourceId, sourceId), (0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PENDING'), (0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PENDING_GENERATION'), (0, drizzle_orm_1.eq)(schema_1.visuals.status, 'PROCESSING'))));
-                    const remainingCount = (_f = (_e = pendingOrProcessing[0]) === null || _e === void 0 ? void 0 : _e.count) !== null && _f !== void 0 ? _f : 1;
+                    const remainingCount = (_g = (_f = pendingOrProcessing[0]) === null || _f === void 0 ? void 0 : _f.count) !== null && _g !== void 0 ? _g : 1;
                     if (remainingCount === 0) {
                         const currentSource = yield index_1.db.query.sources.findFirst({
                             where: (0, drizzle_orm_1.eq)(schema_1.sources.id, sourceId),
@@ -217,8 +232,11 @@ function findBestImageBySimilarity(results, targetDescription, similarityThresho
         // Compare target description against the image title (most reliable field)
         const similarity = stringSimilarity.compareTwoStrings(targetDescription.toLowerCase(), result.altText.toLowerCase() // Use altText (which is image title)
         );
-        console.log(`[Worker:GenerateVisual] - Image: "${result.altText.substring(0, 50)}..." | Similarity: ${similarity.toFixed(3)}`);
-        return Object.assign(Object.assign({}, result), { score: similarity });
+        // Add a small bonus for having source info, penalize slightly if missing
+        const attributionBonus = (result.sourceUrl && result.sourceTitle) ? 0.05 : -0.02;
+        const finalScore = similarity + attributionBonus;
+        console.log(`[Worker:GenerateVisual] - Image: "${result.altText.substring(0, 50)}..." | Sim: ${similarity.toFixed(3)} | Attr Bonus: ${attributionBonus.toFixed(3)} | Final: ${finalScore.toFixed(3)}`);
+        return Object.assign(Object.assign({}, result), { score: finalScore });
     });
     // Sort by score descending
     scoredResults.sort((a, b) => b.score - a.score);

@@ -5,67 +5,61 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GENERATE_TAGS = exports.EXTRACT_FLASHCARDS = exports.GENERATE_QUIZ = exports.GENERATE_LESSON_STRUCTURE = void 0;
-// NOTE: This prompt needs refinement based on testing and AI provider capabilities.
-// It currently includes basic instructions for JSON output based on aiStructuredContentSchema.
+/* eslint-disable max‑lines */
+//
+// ──────────────────────────────────────────────────────────────────────────
+//  Base instructions
+// ──────────────────────────────────────────────────────────────────────────
+//
 const lessonStructureBaseInstructions = `
-You are an expert **educator and researcher**. Your goal is to transform raw text into a comprehensive, engaging, and visually-supported learning resource.
+You are an expert **educator and researcher**. Your goal is to transform raw text into a comprehensive, engaging, and visually‑supported learning resource.
 Analyze the following text, **briefly research its core concepts to provide additional depth**, and generate a structured lesson plan in a valid JSON format.
 **IMPORTANT:** Generate the entire response (title, summary, structure content, visual descriptions, search queries, added insights, etc.) in the language specified by the language code: **{LANGUAGE_CODE}**.
-(Note: {LANGUAGE_CODE} should be the 3-letter ISO 639-3 code, e.g., 'eng', 'spa', 'fra')
+(Note: {LANGUAGE_CODE} should be the 3‑letter ISO 639‑3 code, e.g., 'eng', 'spa', 'fra')
 `;
 const lessonStructureJsonFormat = `
 The JSON object must strictly adhere to the following structure:
 {
-  "title": "string",
-  "summary": "string",
-  "structure": [
+  "title": "string", // Overall title for the entire content
+  "summary": "string | null", // Overall summary of the entire content (1-3 sentences)
+  "structure": [ // Array representing the main sections of the lesson
     {
-      "contentType": "string",
-      "content": "string",
-      "level": "number",
-      "items": ["string"],
-      "keyPoints": ["string"],
-      "placeholderId": "string"
+      "contentType": "heading", // Must be heading for top-level sections
+      "level": 1, // Typically 1 for main sections
+      "content": "string", // The heading text (plain text only)
+      "sectionSummary": "string | null", // Brief summary of THIS section
+      "keyPoints": ["string"] | null, // Optional key points for THIS section
+      "subStructure": [ // Optional nested array for content WITHIN this section
+        {
+          "contentType": "string", // e.g., 'heading', 'paragraph', 'list', 'visual_placeholder', 'code_block', 'note_box', 'highlight_box', 'definition', 'example', 'qa'
+          "level": "number | null", // Heading level (e.g., 2, 3) if contentType is 'heading', null otherwise
+          "content": "string", // Block content (ALWAYS PLAIN TEXT, NO MARKDOWN/HTML)
+          "items": ["string"] | null, // Array of strings ONLY for 'list' contentType
+          "keyPoints": ["string"] | null, // Array of strings ONLY for 'key_takeaway_box' contentType
+          "placeholderId": "string | null", // Unique ID ONLY for 'visual_placeholder'
+          "title": "string | null", // Optional title ONLY for callouts like 'note_box', 'highlight_box', 'code_block', 'example'
+          "language": "string | null" // Optional language name ONLY for 'code_block'
+          // Can potentially nest further with subStructure if needed for complex outlines
+        }
+        // ... more blocks within this section
+      ]
     }
+    // ... more main sections
   ],
-  "visualOpportunities": [
+  "visualOpportunities": [ // List of ALL visuals suggested anywhere in the structure
     {
-      "placeholderId": "string",
-      "concept": "string",
-      "description": "string",
-      "searchQuery": "string"
+      "placeholderId": "string", // Matches a placeholderId in the structure
+      "concept": "string", // Concept the visual illustrates
+      "description": "string", // Detailed description of the ideal visual
+      "searchQuery": "string" // Specific image search query
     }
   ]
 }
 `;
 const lessonStructureGuidelines = `
-Guidelines:
-- Provide a concise, relevant title for the lesson based on the text.
-- Provide a brief 1-3 sentence summary of the text's main points. Use null if not applicable.
-- **Enhance Depth:** Based on the core topic, incorporate 1-2 additional relevant insights, brief explanations, or illustrative examples that go slightly beyond the provided text. Integrate these naturally within the generated structure (e.g., in paragraphs, explanations, or examples) to add value and context. Keep these additions concise and directly related to the topic. **Where appropriate, you can subtly indicate externally added context (e.g., starting a sentence with "For further context," or similar) but prioritize natural flow.**
-- The "structure" array represents the content flow.
-- "contentType" is the semantic type of the content block (e.g., "heading", "paragraph", "bullet_list", "code_block", "advanced_code_block", "definition", "key_takeaway_box", "callout_info", "visual_placeholder", "introduction", "explanation", "example"). 
-    - Use 'advanced_code_block' for code snippets longer than one line or requiring specific formatting/language context. 
-    - **Use 'callout_info' for important tips, warnings, interesting facts, or supplementary information that should stand out from the main text flow.**
-    - **Use 'key_takeaway_box' (with the 'keyPoints' field) primarily at the end of significant sections or topics to summarize the most critical conclusions or points for the learner.**
-- "content" is the text content for the block. For 'visual_placeholder', a brief description (e.g., 'Diagram showing structure'). For 'advanced_code_block', include the full code snippet here.
-- "level" is the heading level (1, 2, 3, etc.) ONLY for 'heading' contentType. Use null if not applicable.
-- "items" is an array of strings, ONLY for 'bullet_list' contentType. Use null if not applicable.
-- "keyPoints" is an array of 1-3 crucial bullet points summarizing the core message of this block/section, ideal for 'key_takeaway_box'. Use null if not applicable.
-- "placeholderId" is a unique ID (e.g., "VISUAL_1"), ONLY for 'visual_placeholder' contentType. Use null if not applicable.
-- The "visualOpportunities" array should contain 3-5 identified visual opportunities. Use null if none.
-- For each visual opportunity, include:
-    - "placeholderId": Unique ID matching a visual_placeholder block in the structure.
-    - "concept": The specific concept the visual should illustrate.
-    - "description": Detailed description of the visual needed (e.g., 'Flowchart illustrating the process of photosynthesis').
-    - "searchQuery": A high-quality, optimized query for image search engines (e.g., Google Images, SerpApi).
-- **CRITICAL:** For every entry you create in the "visualOpportunities" array with a specific "placeholderId", you MUST create a corresponding block within the "structure" array that uses the exact same "placeholderId" value AND has its "contentType" set explicitly to "visual_placeholder". Do not merge this placeholder into a paragraph block.
-- Create a logical flow using appropriate 'contentType' values.
-- Use 'key_takeaway_box' with 'keyPoints' to highlight critical summaries **where logically appropriate (don't overuse)**.
-- Ensure the ENTIRE output is a single, valid JSON object starting with { and ending with }.
-- Do NOT include any text, explanations, or markdown formatting outside the main JSON object itself.
-- Use null for optional fields if they are not applicable or generated.
-`;
+\nGuidelines:\n- **Title & Summary:** Provide a concise, relevant title and a brief 1‑3 sentence summary of the text's main points in the specified {LANGUAGE_CODE}. Use null for summary if not applicable.\n\n- **Enhance Depth & Elaboration:** \n    - **CRITICAL:** Your primary goal is to create a comprehensive educational resource, not just summarize the input. \n    - **Analyze the provided text thoroughly.** Identify the core concepts, arguments, and examples.\n    - **Act like a subject matter expert:** Where the text is brief or assumes prior knowledge, **elaborate** on key concepts. Provide clear definitions, add relevant context, offer illustrative examples, or break down complex ideas into simpler steps. \n    - **Supplement (Briefly):** If necessary, perform a *very brief* internal knowledge check or simulated search to fill minor gaps or provide crucial context missing from the source text. Prioritize explaining concepts mentioned *within* the text first.\n    - **Integration:** Weave these elaborations naturally into the structure using appropriate contentTypes (e.g., 'definition', 'explanation', 'example', 'paragraph'). Avoid just appending researched facts; integrate them contextually.\n    - **Attribution:** While natural integration is preferred, if adding significant external context, you *can* use phrases like "For context," or "To elaborate," but don't overdo it.\n\n- **Structure Array (structure):** This array represents the logical flow of the lesson, broken into main sections.\n    - **Main Sections:** Each object in the top-level \`structure\` array MUST have \`contentType: 'heading'\` and \`level: 1\`.\n    - **Section Summary:** For each main section, provide a brief \`sectionSummary\` (1-2 sentences).\n    - **Section Key Points:** Optionally provide \`keyPoints\` summarizing the main section.\n    - **Sub-Structure (\`subStructure\`):** This REQUIRED nested array contains the actual content blocks for the section.\n        - **Content Blocks:** Each object in \`subStructure\` represents a piece of content (paragraph, list, callout, visual, etc.).\n        - **contentType:** Use the specific types defined in the JSON format section (e.g., 'paragraph', 'list', 'note_box', 'visual_placeholder').\n        - **CRITICAL: \`content\` field MUST be plain text ONLY.** Absolutely NO Markdown (like **, *, #) or HTML tags. All formatting comes from \`contentType\`.\n        - **Visual Placement:** Place \`visual_placeholder\` blocks within the \`subStructure\` where the visual makes the most sense. The corresponding entry in the top-level \`visualOpportunities\` array defines the visual's details.\n        - **Other Fields:** Use \`level\`, \`items\`, \`keyPoints\` (for key_takeaway_box), \`placeholderId\`, \`title\`, \`language\` as appropriate for the \`contentType\`.\n\n- **Visual Opportunities (visualOpportunities):** Identify 3‑5 opportunities where a visual would significantly enhance understanding. Use null if none.\n    - **placeholderId:** Unique ID (e.g., "VISUAL_1") matching *exactly* one 'visual_placeholder' block in the structure.\n    - **concept:** The specific concept the visual illustrates (e.g., "LLM Parameter File Structure").\n    - **description:** Detailed description of the ideal visual needed (e.g., "A simple block diagram showing two distinct boxes. One large box labeled 'Parameters File (e.g., 140GB)' and a smaller box labeled 'Run Code (e.g., 500 lines C)'").\n    - **searchQuery:** A highly effective, specific query for image search (e.g., "LLM parameter file and run code diagram", "open weight vs closed source llm comparison chart").\n\n- **CRITICAL - Placeholder Consistency:** For **every** entry in visualOpportunities, there MUST be exactly one corresponding block in structure with the same placeholderId and contentType: 'visual_placeholder'. Do NOT merge placeholders into other block types.\n
+- **Content Variety & Callouts:** Structure the content logically. Use a variety of contentType values to make the lesson engaging and clear (e.g., 'paragraph', 'list', 'definition', 'example'). Use callout boxes (\`note_box\`, \`highlight_box\`) appropriately for emphasis. Generate a \`qa\` block if the content naturally poses and answers questions. Create a \`key_takeaway_box\` (using its \`keyPoints\` field) only for summarizing the absolute most critical points of a subsection, distinct from the main section's \`keyPoints\`.\n
+- **Output Format:** Ensure the ENTIRE output is a single, valid JSON object starting with { and ending with }.\n\n- **Field Values:** Use \`null\` for optional fields when not applicable to the specific contentType.\n`;
 const lessonStructureInputSection = `
 Text to analyze:
 ---
@@ -80,21 +74,26 @@ exports.GENERATE_LESSON_STRUCTURE = lessonStructureBaseInstructions +
     lessonStructureGuidelines +
     lessonStructureInputSection +
     lessonStructureClosing;
-// Add other prompts (e.g., GENERATE_QUIZ, EXTRACT_FLASHCARDS) later.
-const GENERATE_QUIZ = (content) => `...`;
+// ──────────────────────────────────────────────────────────────────────────
+//  Stubs for future prompts
+// ──────────────────────────────────────────────────────────────────────────
+const GENERATE_QUIZ = (_content) => '...';
 exports.GENERATE_QUIZ = GENERATE_QUIZ;
-const EXTRACT_FLASHCARDS = (content) => `...`;
+const EXTRACT_FLASHCARDS = (_content) => '...';
 exports.EXTRACT_FLASHCARDS = EXTRACT_FLASHCARDS;
+// ──────────────────────────────────────────────────────────────────────────
+//  Subject‑tag generation prompt
+// ──────────────────────────────────────────────────────────────────────────
 /**
  * Prompt to generate relevant subject tags from content.
  * Expects a JSON response: { "tags": ["tag1", "tag2", ...] }
  */
 const generateTagsBase = `
-Analyze the following content and identify 3-5 concise, relevant subject tags or keywords that accurately represent the main topics.
+Analyze the following content and identify 3‑5 concise, relevant subject tags or keywords that accurately represent the main topics.
 Focus on specific concepts, disciplines, or key entities mentioned.
 Avoid overly generic terms unless they are central to the theme.
 **IMPORTANT:** Generate the tags themselves in the language specified by the language code: **{LANGUAGE_CODE}**.
-(Note: {LANGUAGE_CODE} should be the 3-letter ISO 639-3 code, e.g., 'eng', 'spa', 'fra')
+(Note: {LANGUAGE_CODE} should be the 3‑letter ISO 639‑3 code, e.g., 'eng', 'spa', 'fra')
 
 Return the tags as a JSON object with a single key "tags" containing an array of strings.
 
@@ -109,9 +108,9 @@ const generateTagsClosing = `
 
 JSON Response (tags in {LANGUAGE_CODE}):
 `;
-const GENERATE_TAGS = (content) => {
-    // Ensure content doesn't break the prompt structure
-    const safeContent = content.replace(/`/g, "'"); // Basic backtick escaping
+const GENERATE_TAGS = (_content) => {
+    // basic sanitisation → avoid breaking the prompt with back‑ticks
+    const safeContent = _content.replace(/`/g, "'");
     return generateTagsBase + safeContent + generateTagsClosing;
 };
 exports.GENERATE_TAGS = GENERATE_TAGS;

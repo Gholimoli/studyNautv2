@@ -1,0 +1,14 @@
+{{!-- 
+  Partial: code-block.hbs
+  Context: LessonBlock (this)
+  Renders code content, using the placeholder highlightSyntax helper.
+--}}
+{{#if content}}
+  {{!-- Apply Tailwind classes similar to the benchmark for the container --}}
+  <div class="relative block overflow-x-auto rounded-md border bg-muted p-4 font-mono text-sm my-6 text-foreground">
+    {{!-- The highlightSyntax helper currently wraps in pre/code tags --}}
+    {{{highlightSyntax content language}}}
+  </div>
+{{else}}
+  {{!-- Optional: Comment indicating no code content provided --}}
+{{/if}} 

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { AppError } from '@/types/errors';
+import { AppError } from '@shared/types/errors';
 import { toast } from 'sonner';
 
 // --- Types ---
